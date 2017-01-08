@@ -13,4 +13,4 @@ int main(int argc, char** argv){
 }
 ```
 
-![](placeholder.png)
+![](images/placeholder.png)
