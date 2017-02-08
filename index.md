@@ -1,16 +1,6 @@
 ---
-layout: default
+# You don't need to edit this file, it's empty on purpose.
+# Edit theme's home layout instead if you wanna make some changes
+# See: https://jekyllrb.com/docs/themes/#overriding-theme-defaults
+layout: home
 ---
-
-Text can be **bold**, _italic_, or ~~strikethrough~~.
-
-[Link to another page](another-page).
-
-```c++
-// code with syntax highlighting.
-int main(int argc, char** argv){
-  return 0;
-}
-```
-
-![](images/placeholder.png)
