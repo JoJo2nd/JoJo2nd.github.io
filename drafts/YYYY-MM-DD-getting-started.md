@@ -39,6 +39,7 @@ The chip is under Harley Quinn's arse, which was my crude method to prevent the 
 My PC to PlayStation cable was built from [this awesome guide][16]. I'll elaborate on some of the details here as I think I used slightly different components to what is suggested in the guide. One thing to note is that there seems to be two types of cable detailed on the internet. A 'PSXSerial' cable and a SIOCON cable I build here. The SIOCON cable will work in all situations but the PSXSerial only works in some cases (because it lacks hand shaking lines). It requires extra effort but I my options to be open later so I built the fully SIOCONs compatable cable.
 
 First thing I did was grab a [PlayStation Link Cable from eBay][17][^6] and chop it in half. I needed to figure out which of the 8 wires in the cable are used for which lines/signals. As an aside, the PlayStation serial I/O port looks to use a bastardized RS-232 protocol[^7] running at Half Duplex with some of the signals inverted (I could be wrong here, don't take my word for it). This means we have 8 lines/wires/signals to work out.
+
 * GND - Ground (not interesting) 
 * TXD - Transmitted Data
 * RXD - Received Data
@@ -49,6 +50,7 @@ First thing I did was grab a [PlayStation Link Cable from eBay][17][^6] and chop
 * DSR - Data Set Ready
 
 Grabbing a multi-meter I started testing connections and based on [info in the original guide][16] I matched up the following wire colours to corresponding signals
+
 * Brown - RXD
 * Red - Not Connected!
 * Orange - DSR
