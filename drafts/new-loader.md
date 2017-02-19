@@ -6,15 +6,16 @@
  * Try running in emulator, EXE works but no$psx doesn't because only bin/cue supported. Turns out to config file references exe name larger than 8.3 DOS format
 
  #### The PSX Memory Map ####
- * 0x0000_0000-0xx0000_FFFF Kernel (64K)
- * 0x0001_0000-0x001F_FFFF User Memory (1.9 Meg) 
- * 0x1F00_0000-0x1F00_FFFF Parallel Port (64K)
- * 0x1F80_0000-0x1F80_03FF Scratch Pad (1024 bytes)
- * 0x1F80_1000-0x1F80_2FFF Hardware Registers (8K)
- * 0x8000_0000-0x801F_FFFF Kernel and User Memory Mirror (2 Meg) Cached
- * 0xA000_0000-0xA01F_FFFF Kernel and User Memory Mirror (2 Meg) Uncached
- * 0xBFC0_0000-0xBFC7_FFFF BIOS (512K)
- * 0x801F_FFF0-0x801F_FFFF Stack (?)
+ | Address Range	   | Use					|
+ |-------------------------|--------------------------------------------|
+ | 0x0000_0000-0xx0000_FFFF| Kernel (64K) |
+ | 0x0001_0000-0x001F_FFFF | User Memory (1.9 Meg) | 
+ | 0x1F00_0000-0x1F00_FFFF | Parallel Port (64K) |
+ | 0x1F80_0000-0x1F80_03FF | Scratch Pad (1024 bytes) |
+ | 0x1F80_1000-0x1F80_2FFF | Hardware Registers (8K) |
+ | 0x8000_0000-0x801F_FFFF | Kernel and User Memory Mirror (2 Meg) Cached |
+ | 0xA000_0000-0xA01F_FFFF | Kernel and User Memory Mirror (2 Meg) Uncached |
+ | 0xBFC0_0000-0xBFC7_FFFF | BIOS (512K) |
 
  * 0x1F801050 - SIO TX RX
  * 0x1F801054 - SIO STAT (check )
@@ -38,7 +39,7 @@
 
 
 Loader.s
-{code snippt asm}
+```asm
 .global ldr
 .global ldr_END
 
@@ -109,43 +110,10 @@ ldr_sioWait:
 	nop
 
 ldr_END:
-
-memldr:
-	lw $t0, 0x0($a0) # Load the write addres (pc0)
-	lw $t1, 0xc($a0) # Load text section size (t_size)
-	lw $t2, ($a1) # source address
-
-memldr_copyloop:
-	lb $t3, ($t2)
-	sb $t3, ($t0)
-
-	addiu $t0, 1
-	addiu $t2, 1
-	addiu $t1, -1
-	bne $t1, $zero, memldr_copyloop
-	nop
-
-	# Custom version
-	#lw $t0, ($a0) # Load the write addres (pc0)
-	#jr $t0 # jump to program start
-	#nop
-	# Using syscalls. Can't use syscall.s version, may have been destroyed
-	# call EnterCriticalSection
-	or $t5, $a0, $a0 # $t5=$a0 
-	li $a0, 1
-	syscall
-	nop
-	# call Exec
-	or $a0, $t5, $t5 # $a0=$t5 
-	li $a1, 1 # argc
-	li $a2, 0 # argv (null)
-	li $9, 0x43 
-	j 0xa0 # call Exec. 
-	nop
-memldr_END:
+```
 ======
 psxldr.c
-
+```C
 /**
  * PSXSDK loader
  *
@@ -162,12 +130,6 @@ psxldr.c
 #define CVAR_USE_SIO (1)
 #define CVAR_USE_CVERSION (0)
 #define CVAR_USE_MOVED_ASM (1)
-
-#if !CVAR_USE_SIO
-# include "data.inl"
-#else
-uint8_t data_array[16] = {0};
-#endif
 
 /* status bits */
 #define SR_IRQ		0x200
@@ -230,7 +192,7 @@ typedef struct EXEC {
 } exec_t;
 
 
-typedef struct XF_HDR {
+typedef struct EXE_HDR {
 	char key[8]; //0x0
 	unsigned long text; //0x08
 	unsigned long data; //0x0C
@@ -272,9 +234,6 @@ volatile int frame_number;
 
 extern void ldr(void* exec);
 extern void ldr_END();
-
-extern void memldr(void* exec, void* src);
-extern void memldr_END();
 
 void loader_vblank_handler() {
 	++frame_number;
@@ -321,20 +280,10 @@ void render_state3(LoaderState_t st, psxexeheader_t const* hdr, void* a2, uint32
 
 uint8_t sio_read_uint8() {
 	uint8_t r;
-	if (CVAR_USE_SIO) {
-		SIO_CTRL |= CR_RTS; // RTS on
-		while (!SIOCheckInBuffer());
-		r = SIOReadByte();
-		SIO_CTRL &= ~CR_RTS; // RTS off
-	} else {
-		static uint32_t data_i = sizeof(data_array);
-		if (data_i == sizeof(data_array)) {
-			r = 99;
-			data_i = 0;
-		} else {
-			r = data_array[data_i++];
-		}
-	}
+	SIO_CTRL |= CR_RTS; // RTS on
+	while (!SIOCheckInBuffer());
+	r = SIOReadByte();
+	SIO_CTRL &= ~CR_RTS; // RTS off
 	return r;
 }
 
@@ -347,23 +296,18 @@ uint32_t sio_read_uint32() {
 }
 
 /*
- This currently seems to work BUT requires two syscalls (e.g. EnterCriticalSection() & Exec())
- and currently stamps over itself.
- TODO: 
- 	* create a .asm file with position independent code for copying exe
- 	* get location of code, copy to the top(?) of the stack (I think we can run code from there)
+ This currently seems to work BUT Exec failes when loaded exec calls _96_init()
 */
 typedef void (*ldr_func_t)(void*);
-typedef void (*memldr_func_t)(void*, void*);
 
 int main() {
 	uint8_t hdr_data[PSXEXE_HEADER_SIZE];
-	uint8_t ldr_data[PSXEXE_LDR_SIZE+4];
+	uint8_t ldr_data[PSXEXE_LDR_SIZE];
 	psxexeheader_t* hdr = (psxexeheader_t*)hdr_data;
 
 	PSX_InitEx(0);
 
-	memset(ldr_data, 0, PSXEXE_LDR_SIZE+4);
+	memset(ldr_data, 0, PSXEXE_LDR_SIZE);
 	memset(hdr_data, 0, PSXEXE_HEADER_SIZE);
 
 	GsInit();
@@ -384,111 +328,53 @@ int main() {
 
 		uint8_t b = sio_read_uint8();
 		if (b != ctrlcode_sync)
-			continue; // restart the process
-
-		render_state(RecivedSync, hdr, NULL, NULL);		
+			continue; // restart the process		
 
 		render_state(ReadingHeader, hdr, NULL, NULL);	
 		for (uint32_t i = 0; i < PSXEXE_HEADER_SIZE; ++i) {
 			hdr_data[i] = sio_read_uint8();
 		}
-		printf("Loaded header\n");
+
 		if (strcmp("PS-X EXE", hdr->key))
 			continue;
 
-		printf("Header OK!\n"
-		"pc0 = %x\n gp0 = %x\n t_addr = %x\n t_size = %x\n d_addr = %x\n d_size = %x\n b_addr = %x\n b_size = %x\n s_addr = %x\n s_size = %x\n",
-		hdr->exec.pc0,hdr->exec.gp0,hdr->exec.t_addr,hdr->exec.t_size,hdr->exec.d_addr,hdr->exec.d_size,hdr->exec.b_addr,hdr->exec.b_size,hdr->exec.s_addr,hdr->exec.s_size);
 		render_state(ReadingEXE, hdr, &hdr->exec, ldr_data);
-#if 1
 		hdr->exec.s_addr = /*STACKP*/0x801ffff0;
 		hdr->exec.s_size = 0;
-		//EnterCriticalSection(); 
 
-		if (CVAR_USE_SIO) {
-			if (CVAR_USE_CVERSION) {
-				uint8_t*exe = (uint8_t*)hdr->exec.pc0;
-				for (uint32_t i = 0, n = hdr->exec.t_size; i < n; ++i) {
-					*exe = sio_read_uint8(); 
-					exe++;
-					if ((i%2048) == 0) {
-						render_state2(ReadingEXE, hdr, ldr, i);
-					}
-				}
-				render_state3(ReadingEXE, hdr, ldr, hdr->exec.t_size);
-				PSX_DeInit();
-				EnterCriticalSection();
-				Exec(&hdr->exec, 1, 0);
-			} else {
-				if (CVAR_USE_MOVED_ASM) {
-					// use space on the stack to move our loader to
-					uintptr_t pic_size = (uintptr_t)ldr_END - (uintptr_t)ldr;
-					uint8_t* pic_loc = (uint8_t*)(((uintptr_t)ldr_data + 3) & ~3);
-					// Copy to the stack (which is high mem)
-					memcpy(pic_loc, ldr, pic_size);
-					// Call our moved code
-					((ldr_func_t)pic_loc)(&hdr->exec);
-				} else {
-					ldr(&hdr->exec);
+		if (CVAR_USE_CVERSION) {
+			uint8_t*exe = (uint8_t*)hdr->exec.pc0;
+			for (uint32_t i = 0, n = hdr->exec.t_size; i < n; ++i) {
+				*exe = sio_read_uint8(); 
+				exe++;
+				if ((i%2048) == 0) {
+					render_state2(ReadingEXE, hdr, ldr, i);
 				}
 			}
+			render_state3(ReadingEXE, hdr, ldr, hdr->exec.t_size);
+			PSX_DeInit();
+			EnterCriticalSection();
+			Exec(&hdr->exec, 1, 0);
 		} else {
-			if (CVAR_USE_CVERSION) {
-				uint8_t* exe = (uint8_t*)hdr->exec.pc0;
-				for (uint32_t i = 0, n = hdr->exec.t_size; i < n; ++i) {
-					*exe = sio_read_uint8(); 
-					exe++;
-				}
-
-				EnterCriticalSection();
-				Exec(&hdr->exec, 1, 0);
-			} else {
-				printf("Copying Loader\n");
+			if (CVAR_USE_MOVED_ASM) {
 				// use space on the stack to move our loader to
-				uintptr_t pic_size = (uintptr_t)memldr_END - (uintptr_t)memldr;
+				uintptr_t pic_size = (uintptr_t)ldr_END - (uintptr_t)ldr;
 				uint8_t* pic_loc = (uint8_t*)(((uintptr_t)ldr_data + 3) & ~3);
 				// Copy to the stack (which is high mem)
-				memcpy(pic_loc, memldr, pic_size);
-				printf("Jumping to Loader @ %p\n", pic_loc);
-				((memldr_func_t)pic_loc)(&hdr->exec, data_array+2048);
+				memcpy(pic_loc, ldr, pic_size);
+				// Call our moved code
+				((ldr_func_t)pic_loc)(&hdr->exec);
+			} else {
+				ldr(&hdr->exec);
 			}
 		}
-#endif		
-#if 0
-		uint8_t cb;
-		for (uint32_t i = 0, n = hdr->exec.t_size; i < n; ++i) {
-			cb = sio_read_uint8(); 
-		}
-		(void)cb;
-#endif
-#if 0
-		uint8_t* exe = (uint8_t*)write_address;
-		//memcpy(exe, header.headerData, 2048);
-
-		render_state(ReadingEXE, 0);
-		for (uint32_t i = 0, n = f_len; i < n; ++i) {
-			*exe = sio_read_uint8(); 
-			exe++;
-			//render_state(ReadingEXE, i);
-		}
-
-		// ensure we do pull ldr.s in to exe
-		ldr();
-
-		struct XF_HDR* head = (struct XF_HDR*)&header;
-		head->exec.s_addr = /*STACKP*/0x801ffff0;
-		head->exec.s_size = 0;
-		EnterCriticalSection();
-		Exec(&head->exec, 1, 0);
-#endif
 	}
 }
-
-//AAAAAAAA 00 11 22 33    44 55 66 77    88 99 AA BB    CC DD EE FF        abcd
+```
 
 ======
 hitserial.c
-
+```C
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -514,21 +400,9 @@ char *bufp;
 
 FILE	*fp;
 
-int RSport = 0;
-int    	RDB	;/* Read Register */
-int     TDB	;/* Write Register */
-int    	IER	;    /* Interrupt Enable Register */
-int    	LCR	;	/* Line Control Register */
-int    	MCR	;	/* Modem Control Register */
-int    	LSR ;	/* Line Status Register */
-int     MSR	;	/* Modem Status Register */
-int     DLL	;	/* */
-int    	DLM	;	/* */
-
 int main(int argc, char *argv[]);
 void RSinit(char const* device, long bps);
 void RSclose();
-char RSputch(char c);
 char RSgetch(void);
 
 
@@ -559,44 +433,18 @@ int main(int argc, char *argv[]) {
 	//sscanf(argv[2],"%lX",&RSport);
 
 	printf("\nUsing port: %s \n", argv[2]);
-
-RDB	 =  RSport+0;/* Read Register */
-TDB	 =	RSport+0;/* Write Register */
-IER	 =	RSport+1;/* Interrupt Enable Register */
-LCR	 =	RSport+3;/* Line Control Register */
-MCR	 =	RSport+4;/* Modem Control Register */
-LSR  =  RSport+5;/* Line Status Register */
-MSR	 =	RSport+6;/* Modem Status Register */
-DLL	 =	RSport+0;/* */
-DLM	 =	RSport+1;/* */
-
-
-
-
-	
 	RSinit(argv[2], 115200);
-
-
-
 	fp = fopen(argv[1], "rb");
-
-	if (fp==NULL){printf("File not found.\n");
-
-
-
-
-						   exit(0);}
-
+	if (fp==NULL){
+		printf("File not found.\n");
+		exit(0);
+	}
 
 	RSputch(99);
-
-
-
 	fseek(fp,0,SEEK_SET);
-
 	for (x=0;x<2048;x++){
 		RSputch(fgetc(fp));
-	}                  /* header schicen */
+	}
 
 
 	fseek(fp,0,SEEK_END);
@@ -612,43 +460,19 @@ DLM	 =	RSport+1;/* */
 	foo.b[2] = fgetc(fp);
 	foo.b[3] = fgetc(fp);
 	printf("x_addr: 0x%x\n", foo.d);
-	if (CVAR_SEND_INFO) {
-		RSputch(foo.b[0]/*fgetc(fp)*/);
-		RSputch(foo.b[1]/*fgetc(fp)*/);
-		RSputch(foo.b[2]/*fgetc(fp)*/);
-		RSputch(foo.b[3]/*fgetc(fp)*/);
-	}
 	fseek(fp,24,SEEK_SET);
-
 	foo.b[0] = fgetc(fp);
 	foo.b[1] = fgetc(fp);
 	foo.b[2] = fgetc(fp);
 	foo.b[3] = fgetc(fp);
 	printf("write addr: 0x%x\n", foo.d);
-
-	if (CVAR_SEND_INFO) {
-		RSputch(foo.b[0]/*fgetc(fp)*/);
-		RSputch(foo.b[1]/*fgetc(fp)*/);
-		RSputch(foo.b[2]/*fgetc(fp)*/);
-		RSputch(foo.b[3]/*fgetc(fp)*/);
-	}
-
 	foo.b[0] = fgetc(fp);
 	foo.b[1] = fgetc(fp);
 	foo.b[2] = fgetc(fp);
 	foo.b[3] = fgetc(fp);
 	printf("f_len: %x\n", foo.d);
 
-	if (CVAR_SEND_INFO) {
-		RSputch(foo.b[0]/*fgetc(fp)*/);
-		RSputch(foo.b[1]/*fgetc(fp)*/);
-		RSputch(foo.b[2]/*fgetc(fp)*/);
-		RSputch(foo.b[3]/*fgetc(fp)*/);
-	}
-
 	fseek(fp,2048,SEEK_SET);
-
-	//sleep(1);
 
 	(void)file_len;
 	time_t start = time(NULL);
@@ -658,7 +482,6 @@ DLM	 =	RSport+1;/* */
 			iPercent = (100* (x)) / n;
 			if (x > 0) printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
 			printf("%3u%% (%u/%u)", iPercent, x+1, n);
-			//if (!x % 512) usleep(1000*16);
 			++x;
 		}
 	}
@@ -667,8 +490,6 @@ DLM	 =	RSport+1;/* */
 
 	float diff = (float)difftime(time(NULL), start);
 	printf("Uploaded %uKB in %.2f seconds\n", foo.d/1024, diff);
-
-	//sleep(3);
 
 	RSclose();
 	return 0;
@@ -732,22 +553,6 @@ void RSinit(char const* device, long bps)
 	ioctl(RSport, TIOCMBIC, &set);
 	set = TIOCM_ST; //set
 	ioctl(RSport, TIOCMBIS, &set);
-
-//	int	r;
-//
-//	/* set RS232C mode */
-//	r = 384 / (bps / 300);		/* calculate baud rate */
-//
-//	out_port(LCR, 0x80);		/* board rate setting mode */
-//	out_port(DLL, r&0x00ff);	/* set lower byte */
-//	out_port(DLM, r>>8);		/* set higher byte */
-//
-//	out_port(LCR, N81MODE);		/* N81, 1/16 mode */
-//
-///*	out_port(IER, 0x01);		/* RxRDY interrupt enable */
-//
-//	out_port(MCR, 0x08);		/* OUT2:on RTS:off DTR:off */
-
 }
 
 void RSclose() {
@@ -798,84 +603,7 @@ char RSputch(char c)
 	/* write */
 	if ((n = write(RSport, &c, 1)) < 0)
 		printf("write failed\n");
-	// flush output
-	//ioctl(RSport, TCFLSH, TCOFLUSH);
-	//do {
-	//	n = write(RSport, &c, 1);
-	//} while (n < 0);
-	return n;
-//	while(!((in_port(MSR) & 0x10)&&(in_port(LSR) & 0x20)))
-//	{
-//		/* CTS:on & Transferd Data Register is empty? */
-//		if(kbhit())
-//		{
-//
-//			fclose(fp);
-//			exit(0);
-//		}
-//	}
-//	out_port(TDB, c);		/* output data */
-//	return c;
 }
 
-/*============================================================
-	Receive character
-============================================================*/
-char RSgetch(void)
-{
-#if 0	
-	int n, set;
-	char dat;
-
-    /* handshake */
-    set = TIOCM_RTS;
-    ioctl(RSport,TIOCMBIS,&set);
-
-    /* read */
-    if ((n = read(RSport,dat,1)) < 0)
-        printf("read failed\n");
-	return dat;
-#endif
-	return 0;
-//	char	c;
-//
-//	out_port(MCR, 0x0a);		/* OUT2:on RTS:on DTR:off */
-//	while (!(in_port(LSR) & 0x01))
-//	{	/* Received Data? */
-//		if(kbhit())
-//		{
-//		
-//			fclose(fp);
-//			exit(0);
-//		}
-//	}
-//	c = in_port(RDB);		/* input data */
-//	out_port(MCR, 0x08);		/* OUT2:on RTS:off DTR:off */
-//	return c;
-}
-
-/*============================================================
-	String to Hex function (fixed)
-============================================================*/
-unsigned long atoh(char *s)
-{
-	int	i;
-	char	*c;
-	int	clen = 0;
-	unsigned long	hex = 0;
-
-	c = s;
-	while(*c++)
-		clen++;
-
-	if(clen>=8) clen = 8;
-	for(i=0; i<clen; i++)
-	{
-		if (s[i] < 58)
-			hex |= (unsigned long)(s[i]&0x0f)<<(4*(clen-1-i));
-		else
-			hex |= (unsigned long)((s[i]+9)&0x0f)<<(4*(clen-1-i));
-	}
-	return hex;
-}
+```
 ====
