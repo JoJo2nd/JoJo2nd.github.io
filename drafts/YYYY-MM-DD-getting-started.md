@@ -5,9 +5,9 @@ date:   2017-02-04 23:46:42 +0000
 categories: psx homebrew
 ---
 
-Professionally, I've worked on PlayStation 2, 3 & 4, PlayStation Portable, Wii, Xbox 360. I've always found a sense of enjoyment from working on consoles[^1]. I put this down to being a console player as a youngster, it's neat to make games on the type of computers I used to use. I've found in recent years a yearning to develop for the game consoles I played on as a kid and not just the ones around now. Initially this started with an interest with the Dreamcast. I'm very fond of my 3 Dreamcasts[^2] and actually getting homebrew running on a Dreamcast is pretty trivial due to them having pretty much zero copy proctection measures. You just have to look at all the unoffical games released after the Dreamcast's death to see that (e.g [Pier Solar][1], [Gunlord][2], [Last Hope][3]). After looking into Dreamcast homebrew and getting distracted I stumbled onto [this custom MegaDrive dev kit][7] (which the videos are worth a watch [here][4], [here][5] & [here][6]). This project is pretty awesome and got my interest but I never looked into making my own. I spent a little bit of time looking into the MegaDrive hardware but never went beyond that. 
+Professionally, I've worked on PlayStation 2, 3 & 4; PlayStation Portable, Wii and Xbox 360. I've always found a sense of enjoyment from working on consoles[^1]. I put this down to being a console player as a youngster, it's neat to make games on the type of computers I used to use. I've found in recent years a yearning to develop for the game consoles I played on as a kid and not just the ones around now. Initially this started with an interest with the Dreamcast. I'm very fond of my 3 Dreamcasts[^2] and actually getting homebrew running on a Dreamcast is pretty trivial due to them having pretty much zero copy proctection measures. You just have to look at all the unoffical games released after the Dreamcast's death to see that (e.g [Pier Solar][1], [Gunlord][2], [Last Hope][3]). After looking into Dreamcast homebrew and getting distracted, I stumbled onto [this custom MegaDrive dev kit][7] (which the videos are worth a watch [here][4], [here][5] & [here][6]). This project is pretty awesome and peaked my interest but I never looked into making my own. I spent a little bit of time looking into the MegaDrive hardware but never went beyond that. 
 
-Then about 3~4 months back a found [PSXDEV][8] and had a hunt around the forums. This led me to find a version of the official PlayStation SDK "psyQ" developed by Psygnosis. The SDK has lots of interesting info in it and a good number of code examples. After a week skim reading it all I thought I'd give it a go as it looked "do-able" on a normal PlayStation.
+Then about 3~4 months back I found [PSXDEV][8] and had a hunt around the forums. This led me to find a version of the official PlayStation SDK "psyQ" developed by Psygnosis. The SDK has lots of interesting info in it and a good number of code examples. After a week skim reading it all I thought I'd give it a go as it looked "do-able" on a normal PlayStation.
 
 When I say "do-able" it still means I'd have to get out a soldering iron and build some custom hardware. It's not as easy as the Dreamcast but I did some electronics at school! It'll be fine :)
 
@@ -23,12 +23,12 @@ As I said the model of playstation matters here. I needed a version with the a s
 
 <img src="/images/getting_started/models_v1.jpg" width="200" />
 
-Addionally, I wanted a parrallel port I/O for future plans[^3]. [This limited me to models up to the SCPH-75XX][10]. The redesigned PSone model *can* work but requires soldering a PC connection directly too the main PCB board[^4]. In the end I managed to get ahold of a SCPH-1002 (the bottom one in the picture above). These models are prone to CD read problems but I can work around that by replacing the CD unit from a PSone unit.
+Addionally, I wanted a parrallel port I/O for future plans[^3]. [This limited me to models up to the SCPH-75XX][10]. The redesigned PSone model *can* work but requires soldering a PC connection directly too the main PCB board[^4]. In the end I managed to get ahold of a SCPH-1002 (the bottom one in the picture above). These models are prone to CD read problems but I could in future work around that by replacing the CD unit from a PSone unit.
 
 
 #### Modchip the PlayStation ####
 
-In order to test homebrew on the PlayStation I need to be able to play copied CDs. This requires installing a mod chip. I won't go into any real detail here [^5] but I simply grabbed some [PIC12F629][15]s, grabbed a hex dump of the mod chip code, fired up my PIC programmer and soldered one into the PlayStation. The one extra snag was that the chip I used was designed for later PlayStation models, not the SCPH-1002, so I had to do some extra research to find the correct solder points on the main board but I ended up with this:
+In order to test homebrew on the PlayStation I needed to be able to play copied CDs. This requires installing a mod chip. I won't go into any real detail here [^5] but I simply grabbed some [PIC12F629][15]s, grabbed a hex dump of the mod chip code, fired up my PIC programmer and soldered one into the PlayStation. The one extra snag was that the chip I used was designed for later PlayStation models, not the SCPH-1002, so I had to do some extra research to find the correct solder points on the main board but I ended up with this:
 
 ![installed mod chip][9]
 
@@ -36,9 +36,9 @@ The chip is under Harley Quinn's arse, which was my crude method to prevent the 
 
 #### Build a PC to PlayStation cable ####
 
-My PC to PlayStation cable was built from [this awesome guide][16]. I'll elaborate on some of the details here as I think I used slightly different components to what is suggested in the guide. One thing to note is that there seems to be two types of cable detailed on the internet. A 'PSXSerial' cable and a SIOCON cable I build here. The SIOCON cable will work in all situations but the PSXSerial only works in some cases (because it lacks hand shaking lines). It requires extra effort but I my options to be open later so I built the fully SIOCONs compatable cable.
+My PC to PlayStation cable was built from [this awesome guide][16]. I'll elaborate on some of the details here as I think I used slightly different components to what is suggested in the guide. One thing to note is that there seems to be two types of cable detailed on the internet. A 'PSXSerial' cable and a SIOCON cable I build here. The SIOCON cable will work in all situations but the PSXSerial only works in some cases (because it lacks hand shaking lines). It requires extra effort but I want my options to be open later so I built the fully SIOCONs compatable cable.
 
-First thing I did was grab a [PlayStation Link Cable from eBay][17][^6] and chop it in half. I needed to figure out which of the 8 wires in the cable are used for which lines/signals. As an aside, the PlayStation serial I/O port looks to use a bastardized RS-232 protocol[^7] running at Half Duplex with some of the signals inverted (I could be wrong here, don't take my word for it). This means we have 8 lines/wires/signals to work out.
+First thing I did was grab a [PlayStation Link Cable from eBay][17][^6] and chop it in half. I needed to figure out which of the 8 wires in the cable are used for which lines/signals. As a side note, the PlayStation serial I/O port looks to use a bastardized RS-232 protocol[^7] running at Half Duplex with some of the signals inverted (I could be wrong here, don't take my word for it). This means we have 8 lines/wires/signals to work out.
 
 * GND - Ground (not interesting) 
 * TXD - Transmitted Data
@@ -62,7 +62,7 @@ Grabbing a multi-meter I started testing connections and based on [info in the o
 
 Note that DCD isn't connected here (hence bastardized RS-232). To make matters more confusing is the signal inversion, which will come into play soon...
 
-So at this point I can solder up the correct wires to a [DE-9 plug][20] and away we go! Except, I haven't seen a PC with a serial port in a long time. As I don't have access to an old machine, I want to use USB instead. This requires extra hardware in the form of a FTDI232 chip to convert between USB and UART. I grabbed mine[^8] from [RS components][21] which might not be the cheapest but avoids any chinese fakes from eBay.
+So at this point I could have soldered up the correct wires to a [DE-9 plug][20] and be done! Except, I haven't seen a PC with a serial port in a long time. As I don't have access to an old machine, I want to use USB instead. This requires extra hardware in the form of a FTDI232 chip to convert between USB and UART. I grabbed mine[^8] from [RS components][21] which might not be the cheapest but avoids any chinese fakes from eBay.
 
 With my FTDI232 I can now solder up my wires. However, the bastardized RS-232 comes in to play again. The signals on the FDTI232 chip don't match the PlayStation so I have to remap them. The remapping is below ([sourced from here, again][16])
 
