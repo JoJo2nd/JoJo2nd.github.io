@@ -11,15 +11,15 @@ Then about 3~4 months back I found [PSXDEV][8] and had a hunt around the forums.
 
 When I say "do-able" it still means I'd have to get out a soldering iron and build some custom hardware. It's not as easy as the Dreamcast but I did some electronics at school! It'll be fine :)
 
-The steps involved in getting something running on a PlayStation are:
-* [Get a PlayStation](#getting-a-playstation) (the model of the playstation matters here)
-* [Modchip the PlayStation](#modchip-the-playstation)
-* [Build a PC to PlayStation cable](#build-a-pc-to-playstation-cable)
-* [Burn a loader CD and upload some homebrew](#burn-a-loader-cd-and-upload-some-homebrew)
+From reading the [PSXDEV][8] forums, my understanding of the steps involved in getting some homebrew code running on a PlayStation are:
+* [Getting a PlayStation](#getting-a-playstation) (the model of the playstation matters here)
+* [Modchipping the PlayStation](#modchip-the-playstation)
+* [Building a PC to PlayStation cable](#build-a-pc-to-playstation-cable)
+* [Burning a loader CD and uploading some homebrew](#burn-a-loader-cd-and-upload-some-homebrew)
 
 #### Getting a Playstation ####
 
-As I said the model of playstation matters here. I needed a version with the a serial I/O which is all of the original PlayStation models had.
+As I said the model of playstation matters here. I needed a version with the a serial I/O port which is all of the original PlayStation models had. Serial I/O was used for linking two PlayStations together for multiplayer but not many games used this feature.
 
 <img src="/images/getting_started/models_v1.jpg" width="200" />
 
@@ -28,7 +28,7 @@ Addionally, I wanted a parrallel port I/O for future plans[^3]. [This limited me
 
 #### Modchip the PlayStation ####
 
-In order to test homebrew on the PlayStation I needed to be able to play copied CDs. This requires installing a mod chip. I won't go into any real detail here [^5] but I simply grabbed some [PIC12F629][15]s, grabbed a hex dump of the mod chip code, fired up my PIC programmer and soldered one into the PlayStation. The one extra snag was that the chip I used was designed for later PlayStation models, not the SCPH-1002, so I had to do some extra research to find the correct solder points on the main board but I ended up with this:
+In order to test homebrew on the PlayStation I needed to be able to play copied CDs. This requires installing a mod chip. I won't go into any real detail here [^5] but using some [PIC12F629][15]s I had left over from a previous project, grabbed a hex dump of the mod chip code, fired up my PIC programmer and soldered the PIC chip into the PlayStation. The one extra snag was that the chip and hex dump I used was designed for later PlayStation models, not the SCPH-1002, so I had to do some extra research to find the correct solder points on the main board. After some googling and referencing pictures to PCB boards I ended up with this:
 
 ![installed mod chip][9]
 
@@ -36,9 +36,9 @@ The chip is under Harley Quinn's arse, which was my crude method to prevent the 
 
 #### Build a PC to PlayStation cable ####
 
-My PC to PlayStation cable was built from [this awesome guide][16]. I'll elaborate on some of the details here as I think I used slightly different components to what is suggested in the guide. One thing to note is that there seems to be two types of cable detailed on the internet. A 'PSXSerial' cable and a SIOCON cable I build here. The SIOCON cable will work in all situations but the PSXSerial only works in some cases (because it lacks hand shaking lines). It requires extra effort but I want my options to be open later so I built the fully SIOCONs compatable cable.
+My PC to PlayStation cable was built from [this awesome guide][16]. I'll elaborate on some of the details here as I think I used slightly different components to what is suggested in the guide. One thing to note is that there seems to be two types of cable detailed on the internet. A 'PSXSerial' type cable and a SIOCON type cable I build here. The difference between the two is that the SIOCON cable will work in all situations but the PSXSerial cable only works in some cases (because it lacks hand shaking lines). It requires extra effort but I want my options to be open later so I built the fully SIOCONs compatable cable.
 
-First thing I did was grab a [PlayStation Link Cable from eBay][17][^6] and chop it in half. I needed to figure out which of the 8 wires in the cable are used for which lines/signals. As a side note, the PlayStation serial I/O port looks to use a bastardized RS-232 protocol[^7] running at Half Duplex with some of the signals inverted (I could be wrong here, don't take my word for it). This means we have 8 lines/wires/signals to work out.
+First thing I did was grab a [PlayStation Link Cable from eBay][17][^6] and chop it in half. I needed to figure out which of the 8 wires in the cable are used for which lines/signals. As a side note, the PlayStation serial I/O port looks to use a bastardized RS-232 protocol[^7] running at Half Duplex with some of the signals inverted (I could be wrong here, don't take my word for it). The RS-232 protocol defines 8 signals and the link cable has 8 wires, so it looked like I had a 1-to-1 match. I just needed match the the following signals to each wire.
 
 * GND - Ground (not interesting) 
 * TXD - Transmitted Data
@@ -60,11 +60,11 @@ Grabbing a multi-meter I started testing connections and based on [info in the o
 * Purple - GND
 * Gray - RTS
 
-Note that DCD isn't connected here (hence bastardized RS-232). To make matters more confusing is the signal inversion, which will come into play soon...
+Note that DCD isn't connected here (hence bastardized RS-232). To make matters more confusing was the signal inversion, which came into play soon later...
 
-So at this point I could have soldered up the correct wires to a [DE-9 plug][20] and be done! Except, I haven't seen a PC with a serial port in a long time. As I don't have access to an old machine, I want to use USB instead. This requires extra hardware in the form of a FTDI232 chip to convert between USB and UART. I grabbed mine[^8] from [RS components][21] which might not be the cheapest but avoids any chinese fakes from eBay.
+So at this point I could have soldered up the correct wires to a [DE-9 plug][20] and be done! Except, I haven't seen a PC with a serial port in a long time. As I didn't have access to an old machine (nor did I want to get an old machine just to connect to a PlayStation), I wanted my cable to use USB instead. This required extra hardware in the form of a FTDI232 chip to convert between USB and UART. I grabbed mine[^8] from [RS components][21] which might not be the cheapest but avoids any chinese fakes from eBay (I sounds like there are a number of them floating around).
 
-With my FTDI232 I can now solder up my wires. However, the bastardized RS-232 comes in to play again. The signals on the FDTI232 chip don't match the PlayStation so I have to remap them. The remapping is below ([sourced from here, again][16])
+Once I had my FTDI232 I could now solder up my wires. However, the bastardized RS-232 came in to play. Although both the PlayStation and the FDTI chip use the same signals the signals some of the PlayStation signals are swapped so I had to remap them. I'm guessing here but I think swapping the signals was to slow down any attempts to reverse engineer the link cable. The remapping is below ([sourced from here, again][16])
 
 * RTS -> CTS
 * GND -> GND
@@ -80,23 +80,24 @@ With the remapping sorted I built myself a prototype. Note, the wire colours mat
 
 ![PC2PSX prototype 02][24]
 
-With prototype built, the last step is to program the FDTI chip. Remember before that some signals are inverted? I need to make the chip aware of this. The FDTI comes with tools to enable this so it's actually pretty trivial to do. On Windows, [using this program][25] we just set the RTS, CTS, DSR & DTR signals to be inverted.
+With prototype built, the last step was to program the FDTI chip. Remember before that some signals are inverted? I needed to make the chip aware of this. Luckily, the FDTI chip comes with tools to enable this so it's actually pretty trivial to do. On Windows, [I used this program][25] to set the RTS, CTS, DSR & DTR signals to be inverted.
 
 ![fdti_prog][26]
 
-And with that, time to test it out.
+And with that, it was time to test it out.
 
 #### Burn a loader CD and upload some homebrew ####
 
-The final step! At this point we need an EXE to run on the playstation ([see here][27] and [most importantly, here][28]) and a loader to download the EXE to the PlayStation. For the loader I burnt [PSXSERIAL][29] to a CD[^9]. With a working test EXE and burnt boot loader CD I think I'm done :) Just a case of turning on the PlayStation, connecting to my PC and trying it out...
+This was the final step! At this point I needed an EXE to run on the playstation. To build one I just used some example code from the PsyQ SDK. I used a 'Hello World' like program as it seemed quick and simple to build ([see here][27] and [most importantly, here][28] for info on how to build some samples). Next I needed a loader to download the EXE I'd built to the PlayStation. For the loader I burnt [PSXSERIAL][29] to a CD[^9]. With the test EXE ready and the boot loader burnt to a CD I was ready to test it all out :) Connecting up the PlayStation, turning it on and trying it out I got this...
 
-The final prototype working
 <blockquote class="twitter-tweet" data-lang="en"><p lang="en" dir="ltr">It works!!!! <a href="https://t.co/CPPwFciL2g">pic.twitter.com/CPPwFciL2g</a></p>&mdash; James Moran (@JoJo_2nd) <a href="https://twitter.com/JoJo_2nd/status/817518666073968641">January 6, 2017</a></blockquote>
 <script async src="//platform.twitter.com/widgets.js" charset="utf-8"></script>
 
+I'd call that a successful test.
+
 #### Next Steps ####
 
-Next step should be to build my own little test program. However, I can't see myself getting far without some sort of debugging. For that I think I'll need to look into using PSXSDK for development. While the official PlayStation SDK is around on the internet it uses a custom compiler by SN Systems (that I'm guessing is a fork of GCC). The file formats for the SN compiler & linker aren't documented so I don't think I'll have much luck debugging with anything other than an official [PlayStation DevKit (a.k.a. DTL-H2000)][30]. I've not got the space for PS1 DevKit sadly so PSXSDK looks like my best option here.
+Next step should be to build my own little test program. However, I can't see myself getting far without some sort of debugging. For that I think I'll need to look into using PSXSDK instead of PsyQ for development. While the official PsyQ PlayStation SDK is easy to find on the internet it uses a custom compiler by SN Systems (that I'm guessing is a fork of GCC but that doesn't help much). The file formats for the SN compiler & linker aren't documented so I don't think I'll have much luck debugging with anything other than an official [PlayStation DevKit (a.k.a. DTL-H2000)][30]. I've not got the space for PS1 DevKit sadly so PSXSDK looks like my best option here. That'll probably be a topic of the next post...
 
 #### End ####
 
