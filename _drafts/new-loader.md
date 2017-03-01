@@ -1,11 +1,18 @@
+﻿---
+layout: post
+title:  "A New Loader"
+date:   2017-03-01 22:04:00 +0000
+categories: psx homebrew
+---
+
 ## Outline ##
 
-* [-] Explain move to linux & PSXSDK
-* [-] Process to build PSXSDK
-* [-] Explain problem with current loader (windows only) and the process to upload an EXE
-  *  [-] note that Cygwin was an option but unsure of serial IO and need it for debugger.
-  *  [-] also keen to work on linux
-* [-] Source of the original loader - explain it's quite old now
+* [x] Explain move to linux & PSXSDK
+* [x] Process to build PSXSDK
+* [x] Explain problem with current loader (windows only) and the process to upload an EXE
+  *  [x] note that Cygwin was an option but unsure of serial IO and need it for debugger.
+  *  [x] also keen to work on linux
+* [x] Source of the original loader - explain it's quite old now
   * [-] Port to linux serial port IO
   * [-] Attempt to use old PSXSerial loader exe - doesn't work. The protocol has changed between the original send
  * [-] As the protocol has changed the need to rewirte the PlayStation side of the loader
@@ -18,10 +25,38 @@
     * [-] Explain options; C: move where code is located or ASM: copy the loader
     * [-] Go through ASM version, doesn't work because of notes below
     * [-] Switch back to C version, fix up the linker script and change the elf2exe to read the correct start address
- * [-] Works & still remaining issues
+* [-] Changing hitserial to support listening to printfs 
+* [-] Works & still remaining issues
 
-## Real Deal ##
+## Real Deal / A New Loader ##
 
+**TL;DR** “Give someone a program, frustrate them for a day. Teach someone to program, frustrate them for a lifetime.”
+
+I'd so far I've managed to run some example code written by someone else on my makeshift PlayStation DevKit. The next step for me was to build my own homebrew and run it. For this I had two options; use the official PsyQ SDK[^1] provided by Sony many years ago to professional developers (most PlayStation games were written using this) or use an open source SDK written from scratch by other hobbists. The trade off for me was to either use a Black Box solution with possible legal issues[^2] but that would have very few bugs and issues (i.e. PsyQ)  or an open solution which is incomplete in some areas and will probably have some bugs but allows me to learn more about the hardware by not hiding anything from me. In the end I went for the second option and downloaded a copy of [PSXSDK][1]. It's the harder option of the two I suspect but all the easy stuff is a bit boring ;)
+
+Choosing PSXSDK means I need a unix environment. [Cygwin][5] is an option here but I'm unsure of it's support for serial I/O on windows. Serial I/O is my only way to communicate with the PlayStation at this point so the other option is a linux distro. I've wanted to try Manjaro for a little while so this seemed like a good excuse to install it. 
+
+With Manjaro installed I grabbed the source code to a recent version of [GCC][2] and [BINUTILS][3] so I could build the toolchain from source. Instructions for building [PSXSDK are here.][4] Unusally for linux this process was pretty smooth. I'm pretty sure I lucked out here because the next steps were ~~far less smooth~~ an utter ball ache!
+
+I now appeared to have a working toolchain to compile my own programs for the PlayStation. To check all was working correctly I compiled a sample program from PSXSDK which built fine. Next I just needed to upload it to the PlayStation and make sure it ran OK. Here I hit a snag; The PSXSERIAL program I used to upload programs to the PlayStation was written for windows and so wasn't going to work out of the box on linux. I tried a number a options here, first I tried running the program under [wine][1000]. Under wine PSXSERIAL ran but was unable to actullay connect to the PlayStation. My guess here is that wine's serial port support is a lesser used feature and as such it's a little bit flaky. Next try was to use a virtual matchine running Windows 10. Setting up the virtual machine took a good few hours and worked first time! And then never worked again. So I gave up and booted up another machine with Windows installed and uploaded my test program from there.
+
+Using another machine to upload was a little impractical. Each time I had to compile, copy to a USB, move the USB to the other machine, run PSXSERIAL on that machine and upload to the PlayStation. One option I thought of later is possibly to have SSH into the window machine and copy across the network but SSH is a real pain to set up on Windows if I remember correctly. My other alternative was to port PSXSERIAL to linux. I had the source code from the first version so it shouldn't be too difficult, I'd just have to learn a little about working serial ports on linux.
+
+#### Porting PSXSERIAL to linux ####
+After a couple of evening studying [a few guides][6] and the original source I was in a position to write some code.
+
+[^1]: **S**oftware **D**evelopment **K**it
+[^2]: Sony officially still own PsyQ and it's use is probably not legal (**probably** because I'm not a lawyer but read that as **definiatly**). It's unlikely Sony would do anything about it these days but who knows? They technically have the right
+
+[1]: http://unhaut.x10host.com/psxsdk/
+[2]: https://gcc.gnu.org/
+[3]: https://www.gnu.org/software/binutils/
+[4]: /data/new_loader/psxsdk_toolchain.txt
+[5]: https://www.cygwin.com/
+[6]: https://www.cmrr.umn.edu/~strupp/serial.html
+ 
+
+ 
 ## NOTES ##
 
 * Switch to using PSXSDK. Get it built.
@@ -631,4 +666,33 @@ char RSputch(char c)
 }
 
 ```
+
+Sure there is a way. Your best option is to use a section just for your function:
+
+int start(void) __attribute__((section(".start")));
+
+int start(void)
+{
+}
+And then in the linker script:
+
+SECTIONS
+{
+    . = 0x1234; // <---- put here your address
+    .start : 
+    {
+        *(.start)
+    }
+}
+Or something like that (it's been quite a long time since I used that).
+
+shareimprove this answer
+edited Mar 17 '14 at 15:26
+answered Mar 17 '14 at 15:01
+
+rodrigo
+52k366102
+        
++1, Didn't know you could put linker properties in an attribute. EDIT: the attribute should go before the function name, just tested it. – zhiayang Mar 17 '14 at 15:02 
+
 ====
