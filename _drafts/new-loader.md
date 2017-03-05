@@ -4,102 +4,152 @@ title:  "A New Loader"
 date:   2017-03-01 22:04:00 +0000
 categories: psx homebrew
 ---
-
-## Outline ##
-
-* [x] Explain move to linux & PSXSDK
-* [x] Process to build PSXSDK
-* [x] Explain problem with current loader (windows only) and the process to upload an EXE
-  *  [x] note that Cygwin was an option but unsure of serial IO and need it for debugger.
-  *  [x] also keen to work on linux
-* [x] Source of the original loader - explain it's quite old now
-  * [-] Port to linux serial port IO
-  * [-] Attempt to use old PSXSerial loader exe - doesn't work. The protocol has changed between the original send
- * [-] As the protocol has changed the need to rewirte the PlayStation side of the loader
-    *  [-] Explain the serial process
-    *  [-] Write loader based on what PC side does and what PSXSDK_LoadExe() does
-    *  [-] Built a debug versio to test serial protocol. 1st load failes, EXE boots on PSX but doesn't get any data, emulator doesn't boot this exposed ISO 8.3 filename limit.
-    *  [-] So the first run source (with no reboot)
- * [-] Explain the what the loader needs to do (address, code to copy, ASM, etc)
-    * [-] Show the original C loader code. This works but dies because code stamps over itself
-    * [-] Explain options; C: move where code is located or ASM: copy the loader
-    * [-] Go through ASM version, doesn't work because of notes below
-    * [-] Switch back to C version, fix up the linker script and change the elf2exe to read the correct start address
-* [-] Changing hitserial to support listening to printfs 
-* [-] Works & still remaining issues
-
-## Real Deal / A New Loader ##
+## A New Loader ##
 
 **TL;DR** “Give someone a program, frustrate them for a day. Teach someone to program, frustrate them for a lifetime.”
 
-I'd so far I've managed to run some example code written by someone else on my makeshift PlayStation DevKit. The next step for me was to build my own homebrew and run it. For this I had two options; use the official PsyQ SDK[^1] provided by Sony many years ago to professional developers (most PlayStation games were written using this) or use an open source SDK written from scratch by other hobbists. The trade off for me was to either use a Black Box solution with possible legal issues[^2] but that would have very few bugs and issues (i.e. PsyQ)  or an open solution which is incomplete in some areas and will probably have some bugs but allows me to learn more about the hardware by not hiding anything from me. In the end I went for the second option and downloaded a copy of [PSXSDK][1]. It's the harder option of the two I suspect but all the easy stuff is a bit boring ;)
+I'd so far I've managed to run some example code written by someone else on my makeshift PlayStation DevKit. The next step for me was to build my own homebrew and run it. For this I had two options; use the official PsyQ SDK[^1] provided by Sony many years ago to professional developers (most PlayStation games were written using this) or use an open source SDK written from scratch by other hobbyists. The trade off for me was to either use a Black Box solution with possible legal issues[^2] but that would have very few bugs and issues (i.e. PsyQ)  or an open solution which is incomplete in some areas and will probably have some bugs but allows me to learn more about the hardware by not hiding anything from me. In the end I went for the second option and downloaded a copy of [PSXSDK][1]. It's the harder option of the two I suspect but all the easy stuff is a bit boring ;)
 
 Choosing PSXSDK means I need a unix environment. [Cygwin][5] is an option here but I'm unsure of it's support for serial I/O on windows. Serial I/O is my only way to communicate with the PlayStation at this point so the other option is a linux distro. I've wanted to try Manjaro for a little while so this seemed like a good excuse to install it. 
 
-With Manjaro installed I grabbed the source code to a recent version of [GCC][2] and [BINUTILS][3] so I could build the toolchain from source. Instructions for building [PSXSDK are here.][4] Unusally for linux this process was pretty smooth. I'm pretty sure I lucked out here because the next steps were ~~far less smooth~~ an utter ball ache!
+With Manjaro installed I grabbed the source code to a recent version of [GCC][2] and [BINUTILS][3] so I could build the toolchain from source. Instructions for building [PSXSDK are here.][4] Unusually for linux this process was pretty smooth. I'm pretty sure I lucked out here because the next steps were ~~far less smooth~~ an utter ball ache!
 
-I now appeared to have a working toolchain to compile my own programs for the PlayStation. To check all was working correctly I compiled a sample program from PSXSDK which built fine. Next I just needed to upload it to the PlayStation and make sure it ran OK. Here I hit a snag; The PSXSERIAL program I used to upload programs to the PlayStation was written for windows and so wasn't going to work out of the box on linux. I tried a number a options here, first I tried running the program under [wine][1000]. Under wine PSXSERIAL ran but was unable to actullay connect to the PlayStation. My guess here is that wine's serial port support is a lesser used feature and as such it's a little bit flaky. Next try was to use a virtual matchine running Windows 10. Setting up the virtual machine took a good few hours and worked first time! And then never worked again. So I gave up and booted up another machine with Windows installed and uploaded my test program from there.
+I now appeared to have a working toolchain to compile my own programs for the PlayStation. To check all was working correctly I compiled a sample program from PSXSDK which built fine. Next I just needed to upload it to the PlayStation and make sure it ran OK. Here I hit a snag; The PSXSERIAL program I used to upload programs to the PlayStation was written for windows and so wasn't going to work out of the box on linux. I tried a number a options here, first I tried running the program under [wine][1000]. Under wine PSXSERIAL ran but was unable to actually connect to the PlayStation. My guess here is that wine's serial port support is a lesser used feature and as such it's a little bit flaky. Next try was to use a virtual matchine running Windows 10. Setting up the virtual machine took a good few hours and worked first time! And then never worked again. So I gave up and booted up another machine with Windows installed and uploaded my test program from there.
 
-Using another machine to upload was a little impractical. Each time I had to compile, copy to a USB, move the USB to the other machine, run PSXSERIAL on that machine and upload to the PlayStation. One option I thought of later is possibly to have SSH into the window machine and copy across the network but SSH is a real pain to set up on Windows if I remember correctly. My other alternative was to port PSXSERIAL to linux. I had the source code from the first version so it shouldn't be too difficult, I'd just have to learn a little about working serial ports on linux.
+Using another machine to upload was a little impractical. Each time I had to compile, copy to a USB, move the USB to the other machine, run PSXSERIAL on that machine and upload to the PlayStation. One option I thought of later is possibly to have SSH'd into the Windows machine and copy across the network but SSH is a real pain to set up on Windows if I remember correctly. My other alternative was to port PSXSERIAL to linux. I had the [source code][7] from the first version so it shouldn't be too difficult, I'd just have to learn a little about working with serial ports on linux.
 
 #### Porting PSXSERIAL to linux ####
-After a couple of evening studying [a few guides][6] and the original source I was in a position to write some code.
+After a couple of evening studying [a few guides][6] and the original source I was in a position to write some code. After getting some test code working (e.g. opening and closing the serial port) and reading the PlayStation client source I was pretty sure what I needed to do and I ended up with these two code snippets
 
-[^1]: **S**oftware **D**evelopment **K**it
-[^2]: Sony officially still own PsyQ and it's use is probably not legal (**probably** because I'm not a lawyer but read that as **definiatly**). It's unlikely Sony would do anything about it these days but who knows? They technically have the right
+{% highlight C linenos %}
+void PSXPort_init(char const* device, long bps) {
+  /*
+   Open 'device' for read & write, O_NOCTTY means that no terminal will control the process opening the serial port.
+   O_NDELAY is ignore the DCD line.
+  */
+  termios_t port_settings;
 
-[1]: http://unhaut.x10host.com/psxsdk/
-[2]: https://gcc.gnu.org/
-[3]: https://www.gnu.org/software/binutils/
-[4]: /data/new_loader/psxsdk_toolchain.txt
-[5]: https://www.cygwin.com/
-[6]: https://www.cmrr.umn.edu/~strupp/serial.html
- 
+  PSXPort = open(device, O_RDWR | O_NOCTTY /*| O_NDELAY*/);
 
- 
-## NOTES ##
+  if (PSXPort == 1) 
+    printf("Error opening %s\n", device);
+  else
+    printf("Opened %s\n", device);
 
-* Switch to using PSXSDK. Get it built.
-* rewrite loader as non work on linux. Tried running some under wine & vm box with no luck
-* Write one and run in debug mode (allow redownload, don't boot exe, do CRC check)
-* Try load exe - doesn't work.
- * Try running in emulator, EXE works but no$psx doesn't because only bin/cue supported. Turns out to config file references exe name larger than 8.3 DOS format
+  // Get settings to read in the debugger
+  tcgetattr(PSXPort, &port_settings);
+  // Set the port read/write speeds (hard coded and ignores bps)
+  cfsetispeed(&port_settings, B115200);
+  cfsetospeed(&port_settings, B115200);
 
- #### The PSX Memory Map ####
- | Address Range         | Use                  |
- |-----------------------|----------------------|
- | 0x00000000-0x0000FFFF | Kernel (64K) |
- | 0x00010000-0x001FFFFF | User Memory (1.9 Meg) | 
- | 0x1F000000-0x1F00FFFF | Parallel Port (64K) |
- | 0x1F800000-0x1F8003FF | Scratch Pad (1024 bytes) |
- | 0x1F801000-0x1F802FFF | Hardware Registers (8K) |
- | 0x80000000-0x801FFFFF | Kernel and User Memory Mirror (2 Meg) Cached |
- | 0xA0000000-0xA01FFFFF | Kernel and User Memory Mirror (2 Meg) Uncached |
- | 0xBFC00000-0xBFC7FFFF | BIOS (512K) |
+  // Sets the port into 'raw' mode. There is a call to cfmakeraw() but do it this way to be explicit but 
+  // the flags differ slightly.
+  // Enable the receiver and set local mode
+  port_settings.c_cflag |= (CLOCAL /*| CREAD*/);
+  // enable No parity 8 bit mode, 1 stop bit (not 2)
+  port_settings.c_cflag &= ~(PARENB | CSTOPB | CSIZE);
+  port_settings.c_cflag |= CS8;
+  // enable RAW input mode
+  port_settings.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG | IEXTEN);
+  // enable RAW ouptut mode
+  port_settings.c_oflag &= ~OPOST;
+  // disable software flow control
+  port_settings.c_iflag &= ~(IXON /*| IXOFF | IXANY*/);
+  // no SIGINT and don't convert \r->\n
+  port_settings.c_iflag &= ~(BRKINT | ICRNL);
+  // disable parity check, and strip the parity bits
+  port_settings.c_iflag &= ~(INPCK | ISTRIP);
+  // Apply the settings to the port. TCSAFLUSH is empty I/O buffer first
+  tcsetattr(PSXPort, TCSAFLUSH, &port_settings);
 
- * 0x1F801050 - SIO TX RX
- * 0x1F801054 - SIO STAT (check )
+  // Turn off RTS & DTR, ON: ST
+  int set;
+  set = TIOCM_RTS | TIOCM_DTR; //clear
+  ioctl(PSXPort, TIOCMBIC, &set);
+  set = TIOCM_ST; //set
+  ioctl(PSXPort, TIOCMBIS, &set);
 
- * Got loader runing with Exec() sys call and EnterCriticalSection(). PSXSDK_RunExe() function worked on emulators, didn't on hardware. Exec worked but rebooted the same exe and so needed the exe loaded in to RAM before running. Loading into RAM via SIO locks up the loader (crashes? can't tell). Assuming that this is due to stamping over running process
+}
+{% endhighlight %}
 
- * Need to write PosIndepCode in asm to read SIO, write exe in place then jump to Exec sys call.
+{% highlight C linenos %}
+char PSXPort_putch(char c)
+{
+  int         n, set;
+  time_t      start = time(NULL);
 
- * mipsel-unknown-elf-nm psxldr.elf (a.k.a. nm psxldr.elf) to dump symbol locations. This lists ldr & ldr_END
-#### Mips addressing modes ####
- * Register Addressing This is used in the jr (jump register) instruction.
- * PC-Relative Addressing This is used in the beq and bne (branch equal, branch not equal) instructions.
- * Pseudo-direct Addressing This is used in the j (jump) instruction.
- * Base Addressing This is used in the lw and sw (load word, store word) instructions.
- * __MIPS does not support indirect addressing__
+  // busy wait on CTS==true & SR==false
+  do {
+    ioctl(PSXPort, TIOCMGET, &set);
+    time_t cur = time(NULL);
+    float diff = (float)difftime(cur, start);
+    if (diff > 1/*seconds*/) {
+      printf("timeout %#X!\n", set);
+      return -1;
+    }
+  } while ((set & (TIOCM_CTS | TIOCM_SR)) != TIOCM_CTS);
 
- * stuck on reading ctrl register as only 2 btyes but reading as 4 byte was crashing
- * Added EnterCriticalSection() and returned before calling Exec
- * Moved to high memory using linker script
- * Some exe's don't work - thought is was size based - was linked to calling _96_init()/_96_close()
+  // write
+  if ((n = write(PSXPort, &c, 1)) < 0)
+    printf("write failed\n");
+  return n;
+{% endhighlight %}
 
+These two routines are the main workers in my port. PSXPort_init is just opening the port for talking to the PlayStation. This is pretty standard stuff for opening a serial port in RAW mode. I'm not sure what the other modes are that you can use with the serial port. I knew I needed RAW mode and that was a far as I read about. PSXPort_putc actually write data to the PlayStation one byte at a time. From reading the PlayStation client code for PSXSERIAL is works like so: 
 
-Loader.s
-```asm
+First its raises the CTS (Clear To Send) signal and waits forever. This is a que for the PC side to begin sending data to the PlayStation. Once the PC side see the raised CTS it can send a byte of data to the PlayStation. When the PlayStation receives the byte is clears the CTS signal and does whatever processing this needs to with the byte (normally it just copies it into memory somewhere). When the PlayStation is ready for another byte it starts over again. There is some extra logic on the PC side which checks the TIOM_SR bit is also clear, the SR bit is the status bit for RXD (receive) buffer and we are checking to ensure the receive buffer is empty (i.e. nothing is waiting to be read by the PlayStation). To be honest, I think the CTS logic is enough to ensure is all works but it's something the original code did so I kept it in my port.
+
+With those functions I was able to send data to the PlayStation and the basic flow of what I needed to do was this:
+ * Send an initial sync byte (0x63)
+ * Send the header of the EXE I wanted to copy to the PlayStation. This was a fixed size of 2048 bytes and contains stuff like the start stack pointer address, the initial program counter address, etc
+ * Send the .text data size, .text data start address and the global pointer (this is something MIPS related). One odd this is these things already exists in the header of the EXE just sent so I find it odd that they are needed again.
+ * Send the .text section (i.e. the actual code). Once sent PSXSERIAL will boot the downloaded EXE
+
+Excluding usual programming crap of things never working first time, I got something starting the download to the PlayStation pretty quick. There was a problem, however, as the download would hang midway though. After some extra research I discovered (as far as I could tell) that the protocol for PSXSERIAL had changed over versions. The source code I had was from one of the earlist versions of PSXSERIAL and looked to be incompatable with the newest versions. I started looking into using some earlier version of PSXSERIAL but after two failed attempts I said hell to it, I'll write my own version. I had to learn some details of how the PlayStation BIOS worked but I'd probably end up doing it sooner or later.
+
+#### The PlayStation side of things ####
+
+Following the process defined above I laid out something pretty quick but lacking any code to read from the serial port. Writing to or reading from the serial port is completely different to the process on linux. Linux treats the port as a file that can be read from or written to. The PlayStation, like many other embedded devices I suspect, uses [memory mapped I/O][8] to work with the port. Given the choice of the two, memory mapped I/O is my preferred method. On the PlayStation the serial port is mapped the memory address 0x1F801050, 0x1F801054, 0x1F80105A. 0x1F801054 and 0x1F80105A map to the status register and control register respectfully, 0x1F801050 is where any data for the serial port is written to or read from depending on if the PlayStation is sending or receiving data. 
+
+The PlayStation had to match the Linux code which means setting the **C**lear **T**o **S**end flag in the control register. Once set the Linux machine should send down a new byte of data which I check the status register to confirm the byte has arraived (this is the case when the RXRDY flag in the status register is true). Once the byte has arrived the code reads the data from 0x1F801050 and unsets the CTS bit in the control register. Rinse and repeat until all data is sent. Some example code below:
+
+{% highlight C linenos %}
+/** SIO FIFO Buffer (TX/RX) Register [Read/Write] */
+#define SIO_TX_RX       *((volatile unsigned char*)0x1F801050)
+/** SIO Status Register [Read Only] */
+#define SIO_STAT        *((volatile unsigned short*)0x1F801054)
+/** SIO Mode Register [Read/Write] */
+#define SIO_MODE        *((volatile unsigned short*)0x1F801058)
+/** SIO Control Register [Read/Write] */
+#define SIO_CTRL        *((volatile unsigned short*)0x1F80105A)
+/** SIO Baud Rate Register [Read/Write] */
+#define SIO_BPSV        *((volatile unsigned short*)0x1F80105E)
+
+unsigned char SIOReadByte() {
+    return (unsigned char)SIO_TX_RX;
+}
+int SIOCheckOutBuffer() {
+    /*Return status of TX Ready flag*/
+    return (SIO_STAT & 0x4)>0;
+}
+
+uint8_t sio_read_uint8() {
+    uint8_t r;
+    SIO_CTRL |= CR_RTS; // RTS on
+    while (!SIOCheckInBuffer()); // Checks RXRDY
+    r = SIOReadByte(); // Reads the value from 0x1F801050
+    SIO_CTRL &= ~CR_RTS; // RTS off
+    return r;
+}
+{% endhighlight %}
+
+After a few practice runs with this code the PlayStation was is successfully downloading an exe from the Linux machine. I last step was to add code to boot the downloaded exe and I was finished. It turns out there was another problem waiting...
+
+#### Address Conflicts ####
+
+The loader at this point was able to download an PlayStation exe from my linux machine but my test PlayStation loader simply discarded any data given to it as I was only testing the serial IO protocol at this point. Instead of discarding any data downloaded I'd need to store it in the correct place in the PlayStation's memory. The first naive version that I wrote would just hang midway through the download. "Odd" I thought "it downloaded fine before?" but it didn't take long to click. The loader exe is located at 0x80010000 in memory and the exe I was downloading was located at 0x80010000. At some point the loader copied over it's own code for downloading from the linux machine and crashed (probably on an invalid opcode or memory read/write). The first fix I tried for this was to create some relocatable code. With code I could move I'd relocate the downloading and copying functions to someplace safe in memory while getting the new exe. Once done, the PlayStation would boot the new exe. The easiest way to create a section of code I could relocate at runtime was to write some in assembly. I've not worked with [MIPS][12] assembly at all but I am somewhat use to RISC (from working on Xbox 360 and PlayStation 3 mostly) so the jump wasn't that hard. After an hour or two I had the following
+
+{% highlight asm linenos %}
 .global ldr
 .global ldr_END
 
@@ -121,7 +171,6 @@ Loader.s
 ldr: # a0 = address of PSX-EXE buffer
     lw $t0, 0x0($a0) # Load the write addres (pc0)
     lw $t1, 0xc($a0) # Load text section size (t_size)
-    #lw $sp, 0x20($a0) # Load initial sp value (s_addr) ~ Avoid doing this, don't think it's needed.
     li $a1, SIO_BASE_ADDR # Load serial io read/write address
     li $a2, SIO_STAT_ADDR # Load serial io status reg address
     li $a3, SIO_CTRL_ADDR # Load serial io ctrl reg address
@@ -152,9 +201,6 @@ ldr_sioWait:
     nop
 
     # Custom version
-    #lw $t0, ($a0) # Load the write addres (pc0)
-    #jr $t0 # jump to program start
-    #nop
     # Using syscalls. Can't use syscall.s version, may have been destroyed
     # call EnterCriticalSection
     or $t5, $a0, $a0 # $t5=$a0 
@@ -170,529 +216,92 @@ ldr_sioWait:
     nop
 
 ldr_END:
-```
-======
-psxldr.c
-```C
-/**
- * PSXSDK loader
- *
- * released to the Public Domain
- */
+{% endhighlight %}
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <psx.h>
-#include <psxbios.h>
+Note, I didn't end up using this in the end so I will have bugs I'm sure. The one issue that really caught me out was reading the control register, it turns out that I had to use a lh/sh instruction (load/store halfword) not a lw/sw (load/store word) otherwise I'd get a bus error. This small amount of code reads the serial IO port for data and writes that data into the address in $t0. Once done turns off CPU interrupts and calls a BIOS function to reboot the PlayStation. I'm not 100% sure CPU interrupts need to be disabled but other code I've seen did this so I followed their example. This new bit to me was the ldr: and ldr_END: labels. This labels enabled my C code to find this code in memory and know how large is was. Knowing these two things enabled me to move this function anywhere in memory before starting the download process. The (easy) question is where...below is the memory map of the PlayStation.
 
-#define CVAR_USE_SIO (1)
-#define CVAR_USE_CVERSION (0)
-#define CVAR_USE_MOVED_ASM (1)
+ | Address Range         | Use                  |
+ |-----------------------|----------------------|
+ | 0x00000000-0x0000FFFF | Kernel (64K) |
+ | 0x00010000-0x001FFFFF | User Memory (1.9 Meg) | 
+ | 0x1F000000-0x1F00FFFF | Parallel Port (64K) |
+ | 0x1F800000-0x1F8003FF | Scratch Pad (1024 bytes) |
+ | 0x1F801000-0x1F802FFF | Hardware Registers (8K) |
+ | 0x80000000-0x801FFFFF | Kernel and User Memory Mirror (2 Meg) Cached |
+ | 0xA0000000-0xA01FFFFF | Kernel and User Memory Mirror (2 Meg) Uncached |
+ | 0xBFC00000-0xBFC7FFFF | BIOS (512K) |
 
-/* status bits */
-#define SR_IRQ      0x200
-#define SR_CTS      0x100
-#define SR_DSR      0x80
-#define SR_FE       0x20
-#define SR_OE       0x10
-#define SR_PERROR   0x8
-#define SR_TXU      0x4
-#define SR_RXRDY    0x2
-#define SR_TXRDY    0x1
+Note that the address ranges 0x00000000-0x001FFFFF, 0x80000000-0x801FFFFF and 0xA0000000-0xA01FFFFF are mirror and therefore the same. Normally, PlayStations exes are located at the start of memory (i.e. 0x80010000 not 0x8000000 because the first 0x10000 is used by the PlayStation Kernel) and the stack is located at the end of memory 0x801FFFFF so the easiest and probably safest place to move the assembly code too is on the stack. A quick reshuffle of the code and this was working..._50%_ of the time. I tried a few hours of debugging this in an emulator will no luck (it always worked in the emulator) so I started looking for another way around the problem.
 
-#define SIO_CTS     0x100
-#define SIO_DSR     0x80
-#define SIO_FE      0x20
-#define SIO_OE      0x10
-#define SIO_PERROR  0x8
-#define SIO_TXU     0x4
-#define SIO_RXRDY   0x2
-#define SIO_TXRDY   0x1
+If I couldn't move a single function, why not just move the entire program to the end of memory? It must be possible. Turns out it is and it's actually pretty easy, maybe if I'd been more experienced with the GCC toolchain I'd have done this first. When linking my loader it GCC/BINUTILS uses a linker script which look like this...
 
-/* control bits */
-#define CR_DSRIEN   0x1000
-#define CR_RXIEN    0x800
-#define CR_TXIEN    0x400
-#define CR_BUFSZ_1  0x0
-#define CR_BUFSZ_2  0x100
-#define CR_BUFSZ_4  0x200
-#define CR_BUFSZ_8  0x300
-#define CR_INTRST   0x40
-#define CR_RTS      0x20
-#define CR_ERRRST   0x10
-#define CR_BRK      0x8
-#define CR_RXEN     0x4
-#define CR_DTR      0x2
-#define CR_TXEN     0x1
+{%highlight C %}
+TARGET("elf32-littlemips")
+OUTPUT_ARCH("mips")
 
-#define SIO_BIT_DTR CR_DTR
-#define SIO_BIT_RTS CR_RTS
+ENTRY("_start")
 
-typedef enum ctrlcode {
-    ctrlcode_sync = 99,
-
-    ctrlcode_max = 255
-} ctrlcode_t;
-
-
-typedef struct EXEC {                   
-    unsigned long pc0;      //0x00
-    unsigned long gp0;      //0x04
-    unsigned long t_addr;   //0x08
-    unsigned long t_size;   //0x0c
-    unsigned long d_addr;   //0x10
-    unsigned long d_size;   //0x14
-    unsigned long b_addr;   //0x18
-    unsigned long b_size;   //0x1c
-    unsigned long s_addr;   //0x20
-    unsigned long s_size;   //0x24
-    unsigned long sp,fp,gp,ret,base; //0x28
-} exec_t;
-
-
-typedef struct EXE_HDR {
-    char key[8]; //0x0
-    unsigned long text; //0x08
-    unsigned long data; //0x0C
-    exec_t exec;
-    char title[60];     /* "PlayStation(tm) Executable A1" */
-} psxexeheader_t;
-
-#define PSXEXE_HEADER_SIZE (2048)
-#define PSXEXE_LDR_SIZE (1024)
-
-typedef enum LoaderState {
-    WaitingForSync,
-    RecivedSync,
-    ReadingHeader,
-    ReadingInfo,
-    ReadingEXE,
-    CRCCheck,
-    BootingEXE,
-
-    Max
-} LoaderState_t;
-
-
-char const* LoaderStateStr[] = {
-    "WaitingForSync",
-    "RecivedSync",
-    "ReadingHeader",
-    "ReadingInfo",
-    "ReadingEXE",
-    "Checking EXE...",
-    "Booting EXE...",
-
-    "Invalid"
-};
-
-unsigned int prim_list[4096]; // did we need 0x20000 (128KB!!) of prim list space? we draw very little. Infact we could just allocate this from the bottom of memory.
-int display_is_old = 1;
-volatile int frame_number;
-
-extern void ldr(void* exec);
-extern void ldr_END();
-
-void loader_vblank_handler() {
-    ++frame_number;
-}
-
-void render_state(LoaderState_t st, psxexeheader_t const* hdr, void* a1, void* a2) {
-    GsSortCls(0, 0, 255);
-    uintptr_t pic_size = (uintptr_t)ldr_END - (uintptr_t)ldr;
-
-    GsPrintFont(24, 8, "%s-%s", __DATE__, __TIME__);
-    GsPrintFont(24, 16, "%s - Ldr size: %u/%u @ %p", LoaderStateStr[st], pic_size, PSXEXE_LDR_SIZE, a2);
-    GsPrintFont(24, 24, "M: %s title: %s", hdr->key, hdr->title);
-    GsPrintFont(24, 32, "pc: %x, t_addr: %x, l: %u (%p, %p, %p)", hdr->exec.pc0, hdr->exec.t_addr, hdr->exec.t_size, hdr, a1, a2);
-
-    GsDrawList();
-    while(GsIsDrawing());
-}
-
-void render_state2(LoaderState_t st, psxexeheader_t const* hdr, void* a2, uint32_t bytes) {
-    while(GsIsDrawing());
-    GsSortCls(0, 0, 255);
-    uintptr_t pic_size = (uintptr_t)ldr_END - (uintptr_t)ldr;
-
-    GsPrintFont(24, 8, "%s-%s", __DATE__, __TIME__);
-    GsPrintFont(24, 16, "%s - Ldr size: %u/%u @ %p", LoaderStateStr[st], pic_size, PSXEXE_LDR_SIZE, a2);
-    GsPrintFont(24, 24, "M: %s title: %s", hdr->key, hdr->title);
-    GsPrintFont(24, 32, "pc: %x, t_addr: %x, l: %u/%u (%p, %p)", hdr->exec.pc0, hdr->exec.t_addr, bytes, hdr->exec.t_size, hdr, a2);
-
-    GsDrawList();
-}
-
-void render_state3(LoaderState_t st, psxexeheader_t const* hdr, void* a2, uint32_t bytes) {
-    GsSortCls(0, 0, 255);
-    uintptr_t pic_size = (uintptr_t)ldr_END - (uintptr_t)ldr;
-
-    GsPrintFont(24, 8, "%s-%s", __DATE__, __TIME__);
-    GsPrintFont(24, 16, "%s - Ldr size: %u/%u @ %p", LoaderStateStr[st], pic_size, PSXEXE_LDR_SIZE, a2);
-    GsPrintFont(24, 24, "M: %s title: %s", hdr->key, hdr->title);
-    GsPrintFont(24, 32, "pc: %x, t_addr: %x, l: %u/%u (%p, %p)", hdr->exec.pc0, hdr->exec.t_addr, bytes, hdr->exec.t_size, hdr, a2);
-
-    GsDrawList();
-    while(GsIsDrawing());
-}
-
-uint8_t sio_read_uint8() {
-    uint8_t r;
-    SIO_CTRL |= CR_RTS; // RTS on
-    while (!SIOCheckInBuffer());
-    r = SIOReadByte();
-    SIO_CTRL &= ~CR_RTS; // RTS off
-    return r;
-}
-
-uint32_t sio_read_uint32() {
-    uint8_t b[4];
-    for (uint32_t i = 0; i < 4; ++i) {
-        b[i] = sio_read_uint8();
-    }
-    return b[0] | b[1] << 8 | b[2] << 16 | b[3] << 24;
-}
-
-/*
- This currently seems to work BUT Exec failes when loaded exec calls _96_init()
-*/
-typedef void (*ldr_func_t)(void*);
-
-int main() {
-    uint8_t hdr_data[PSXEXE_HEADER_SIZE];
-    uint8_t ldr_data[PSXEXE_LDR_SIZE];
-    psxexeheader_t* hdr = (psxexeheader_t*)hdr_data;
-
-    PSX_InitEx(0);
-
-    memset(ldr_data, 0, PSXEXE_LDR_SIZE);
-    memset(hdr_data, 0, PSXEXE_HEADER_SIZE);
-
-    GsInit();
-    GsClearMem();
-
-    GsSetVideoMode(640, 240, VMODE_PAL);
-    GsSetList(prim_list);
-    GsSetDispEnvSimple(0, 0);
-    GsSetDrawEnvSimple(0, 0, 640, 240);
-    GsLoadFont(768, 0, 768, 256);
-
-    SetVBlankHandler(loader_vblank_handler);
-
-    SIOStart(115200);
-
-    while(1) {
-        render_state(WaitingForSync, hdr, NULL, NULL);
-
-        uint8_t b = sio_read_uint8();
-        if (b != ctrlcode_sync)
-            continue; // restart the process        
-
-        render_state(ReadingHeader, hdr, NULL, NULL);   
-        for (uint32_t i = 0; i < PSXEXE_HEADER_SIZE; ++i) {
-            hdr_data[i] = sio_read_uint8();
-        }
-
-        if (strcmp("PS-X EXE", hdr->key))
-            continue;
-
-        render_state(ReadingEXE, hdr, &hdr->exec, ldr_data);
-        hdr->exec.s_addr = /*STACKP*/0x801ffff0;
-        hdr->exec.s_size = 0;
-
-        if (CVAR_USE_CVERSION) {
-            uint8_t*exe = (uint8_t*)hdr->exec.pc0;
-            for (uint32_t i = 0, n = hdr->exec.t_size; i < n; ++i) {
-                *exe = sio_read_uint8(); 
-                exe++;
-                if ((i%2048) == 0) {
-                    render_state2(ReadingEXE, hdr, ldr, i);
-                }
-            }
-            render_state3(ReadingEXE, hdr, ldr, hdr->exec.t_size);
-            PSX_DeInit();
-            EnterCriticalSection();
-            Exec(&hdr->exec, 1, 0);
-        } else {
-            if (CVAR_USE_MOVED_ASM) {
-                // use space on the stack to move our loader to
-                uintptr_t pic_size = (uintptr_t)ldr_END - (uintptr_t)ldr;
-                uint8_t* pic_loc = (uint8_t*)(((uintptr_t)ldr_data + 3) & ~3);
-                // Copy to the stack (which is high mem)
-                memcpy(pic_loc, ldr, pic_size);
-                // Call our moved code
-                ((ldr_func_t)pic_loc)(&hdr->exec);
-            } else {
-                ldr(&hdr->exec);
-            }
-        }
-    }
-}
-```
-
-======
-hitserial.c
-```C
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <memory.h>
-#include <string.h>
-#include <stdint.h>
-#include <time.h>
-#include <fcntl.h>  /* File Control Definitions          */
-#include <termios.h>/* POSIX Terminal Control Definitions*/
-#include <unistd.h> /* UNIX Standard Definitions         */
-#include <errno.h>  /* ERROR Number Definitions          */
-#include <sys/ioctl.h> // for TIOCM_RTS
-
-#define CVAR_WAIT_ON_CTS_BIT (1)
-#define CVAR_WAIT_ON_SR_BIT (0)
-#define CVAR_SEND_INFO (0)
-
-typedef struct termios termios_t;
-typedef struct timeval timeval_t;
-
-char buf[2500];
-char *bufp;
-
-FILE    *fp;
-
-int main(int argc, char *argv[]);
-void RSinit(char const* device, long bps);
-void RSclose();
-char RSgetch(void);
-
-
-
-/*============================================================
-    Program entry point
-============================================================*/
-int main(int argc, char *argv[]) {
-    char tosend;
-    char toget;
-    char buffer[200];
-
-    long x=0;
-    long file_len;
-    int iPercent=0;
-
-    (void)tosend;
-    (void)toget;
-    (void)buffer;
-    (void)iPercent;
-
-    printf("\nSEND serial, Version 1.3. This is an absolute BETA, dont spread.");
-    printf("\nUsage:SEND <FILENAME.EXT> <PORTADRESS>\n");
-    printf("Jihad/HITMEN, September 98\n");
-
-    if (argc == 1) {exit(0);}
-
-    //sscanf(argv[2],"%lX",&RSport);
-
-    printf("\nUsing port: %s \n", argv[2]);
-    RSinit(argv[2], 115200);
-    fp = fopen(argv[1], "rb");
-    if (fp==NULL){
-        printf("File not found.\n");
-        exit(0);
-    }
-
-    RSputch(99);
-    fseek(fp,0,SEEK_SET);
-    for (x=0;x<2048;x++){
-        RSputch(fgetc(fp));
-    }
-
-
-    fseek(fp,0,SEEK_END);
-    file_len = ftell(fp);
-
-    fseek(fp,16,SEEK_SET);
-    union {
-        uint32_t d;
-        uint8_t b[4];
-    } foo;
-    foo.b[0] = fgetc(fp);
-    foo.b[1] = fgetc(fp);
-    foo.b[2] = fgetc(fp);
-    foo.b[3] = fgetc(fp);
-    printf("x_addr: 0x%x\n", foo.d);
-    fseek(fp,24,SEEK_SET);
-    foo.b[0] = fgetc(fp);
-    foo.b[1] = fgetc(fp);
-    foo.b[2] = fgetc(fp);
-    foo.b[3] = fgetc(fp);
-    printf("write addr: 0x%x\n", foo.d);
-    foo.b[0] = fgetc(fp);
-    foo.b[1] = fgetc(fp);
-    foo.b[2] = fgetc(fp);
-    foo.b[3] = fgetc(fp);
-    printf("f_len: %x\n", foo.d);
-
-    fseek(fp,2048,SEEK_SET);
-
-    (void)file_len;
-    time_t start = time(NULL);
-
-    for (int x=0, n=foo.d; x<n;) {
-        if (RSputch(fgetc(fp)) >= 0) {
-            iPercent = (100* (x)) / n;
-            if (x > 0) printf("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b");
-            printf("%3u%% (%u/%u)", iPercent, x+1, n);
-            ++x;
-        }
-    }
-
-    printf("\n");
-
-    float diff = (float)difftime(time(NULL), start);
-    printf("Uploaded %uKB in %.2f seconds\n", foo.d/1024, diff);
-
-    RSclose();
-    return 0;
-} /* end of main */
-/*============================================================
-    Init Port
-============================================================*/
-void RSinit(char const* device, long bps)
-{
-    /*
-     Open 'device' for read & write, O_NOCTTY means that no terminal will control the process opening the serial port.
-     O_NDELAY is ignore the DCD line.
-    */
-    termios_t port_settings;
-
-    RSport = open(device, O_RDWR | O_NOCTTY /*| O_NDELAY*/);
-
-    if (RSport == 1) 
-        printf("Error opening %s\n", device);
-    else
-        printf("Opened %s\n", device);
-
-    // Get settings to read in the debugger
-    tcgetattr(RSport, &port_settings);
-    // Set the port read/write speeds (hard coded atm)
-    cfsetispeed(&port_settings, B115200);
-    cfsetospeed(&port_settings, B115200);
-
-    // Sets the port into 'raw' mode. There is a call to cfmakeraw() but do it this way to be explicit but 
-    // the flags differ slightly. These flags are based on siocons but don't exactly match
-    // Enable the receiver and set local mode
-    port_settings.c_cflag |= (CLOCAL /*| CREAD*/);
-    // enable No parity 8 bit mode, 1 stop bit (not 2)
-    port_settings.c_cflag &= ~(PARENB | CSTOPB | CSIZE);
-    port_settings.c_cflag |= CS8;
-    // enable RAW input mode
-    port_settings.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG | IEXTEN);
-    // enable RAW ouptut mode
-    port_settings.c_oflag &= ~OPOST;
-    // disable software flow control
-    port_settings.c_iflag &= ~(IXON /*| IXOFF | IXANY*/);
-    // no SIGINT and don't convert \r->\n
-    port_settings.c_iflag &= ~(BRKINT | ICRNL);
-    // disable parity check, and strip the parity bits
-    port_settings.c_iflag &= ~(INPCK | ISTRIP);
-    /*
-    port_settings.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-    port_settings.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    port_settings.c_oflag &= ~(OPOST);
-    port_settings.c_cflag &= ~(CSIZE | PARENB);
-    port_settings.c_cflag |= (CS8);
-    port_settings.c_cc[VMIN] = 1;
-    port_settings.c_cc[VTIME] = 0;
-    */
-    // Apply the settings to the port. TCSAFLUSH is empty I/O buffer first
-    tcsetattr(RSport, TCSAFLUSH, &port_settings);
-
-    // Turn off RTS & DTR, ON: ST
-    int set;
-    set = TIOCM_RTS | TIOCM_DTR; //clear
-    ioctl(RSport, TIOCMBIC, &set);
-    set = TIOCM_ST; //set
-    ioctl(RSport, TIOCMBIS, &set);
-}
-
-void RSclose() {
-    printf("Closing serial port.\n");
-    close(RSport);
-}
-
-/*============================================================
-    Send Character
-============================================================*/
-char RSputch(char c)
-{
-    int             n, set;
-    int             dtr = TIOCM_DTR;
-    int             cts = TIOCM_CTS;
-    time_t          start = time(NULL);
-    timeval_t       t = {0, 100};
-    (void)dtr;(void)cts;(void)set;(void)t;
-
-    // busy wait on CTS==true & SR==false
-    if (CVAR_WAIT_ON_CTS_BIT) {
-        do {
-            ioctl(RSport, TIOCMGET, &set);
-            time_t cur = time(NULL);
-            float diff = (float)difftime(cur, start);
-            if (diff > 1/*seconds*/) {
-                printf("timeout %#X!\n", set);
-                return -1;
-            }
-
-            //if ((n = select(0, NULL, NULL, NULL, &t)) < 0) {
-            //  printf("select");
-            //  return -1;
-            //}
-        } while ((set & (TIOCM_CTS | TIOCM_SR)) != TIOCM_CTS);
-    } else if (CVAR_WAIT_ON_SR_BIT) {
-        do {
-            ioctl(RSport, TIOCMGET, &set);
-            time_t cur = time(NULL);
-            float diff = (float)difftime(cur, start);
-            if (diff > 1/*seconds*/) {
-                printf("timeout!\n");
-                return -1;
-            }
-        } while (!(set & TIOCM_SR));
-    }
-
-    /* write */
-    if ((n = write(RSport, &c, 1)) < 0)
-        printf("write failed\n");
-}
-
-```
-
-Sure there is a way. Your best option is to use a section just for your function:
-
-int start(void) __attribute__((section(".start")));
-
-int start(void)
-{
-}
-And then in the linker script:
+SEARCH_DIR("/usr/local/psxsdk/lib")
+STARTUP(start.o)
+INPUT(-lpsx -lgcc)
 
 SECTIONS
 {
-    . = 0x1234; // <---- put here your address
-    .start : 
-    {
-        *(.start)
-    }
-}
-Or something like that (it's been quite a long time since I used that).
+  . = 0x80010000;
 
-shareimprove this answer
-edited Mar 17 '14 at 15:26
-answered Mar 17 '14 at 15:01
+  __text_start = .;
+  .text ALIGN(4) : { *(.text*) }
+  __text_end = .;
 
-rodrigo
-52k366102
-        
-+1, Didn't know you could put linker properties in an attribute. EDIT: the attribute should go before the function name, just tested it. – zhiayang Mar 17 '14 at 15:02 
+  ...
 
-====
+{%endhighlight%}
+
+It's pretty easy to spot that 0x80010000 start address. I Changed that value to 0x80C00000 (to leave some space for my loader exe to live in) and rebuilt everything. Worked first time! This means I have a working loader I can use from linux.
+
+#### Final issues ####
+
+I had one final issue to deal with. My loader doesn't work is the exe it attempts to boot uses the CD-ROM driver in the BIOS. **sigh** At this point I doubt I'll solve this easily so my plan is to avoid this until I've got a real debugger in-place. Then I can really dig into the issue but until then it'll probably be an exercise in frustration. I can at least work with what I've got now so I'll stop now.
+
+And that's it for this post, next post I suspect will be on starting to write the GDB debugger stub for the PlayStation. Fun...
+
+For those interested, full source code is here [pc_loader][9], [psx_loader][10], [psx_asm][11]. Be warned, it's messy.
+
+[^1]: **S**oftware **D**evelopment **K**it
+[^2]: Sony officially still own PsyQ and it's use is probably not legal (**probably** because I'm not a lawyer but read that as **definitely**). It's unlikely Sony would do anything about it these days but who knows? They technically have the right
+
+[1]: http://unhaut.x10host.com/psxsdk/
+[2]: https://gcc.gnu.org/
+[3]: https://www.gnu.org/software/binutils/
+[4]: /data/new_loader/psxsdk_toolchain.txt
+[5]: https://www.cygwin.com/
+[6]: https://www.cmrr.umn.edu/~strupp/serial.html
+[7]: http://hitmen.c02.at/files/releases/psx/hitserial-source.zip
+[8]: https://en.wikipedia.org/wiki/Memory-mapped_I/O
+[9]: /data/new_loader/pc_serial.c
+[10]: /data/new_loader/psxldr.c
+[11]: /data/new_loader/ldr.s
+[12]: /data/new_loader/mips_arch.pdf
+ 
+## Outline ##
+
+* [x] Explain move to linux & PSXSDK
+* [x] Process to build PSXSDK
+* [x] Explain problem with current loader (windows only) and the process to upload an EXE
+  *  [x] note that Cygwin was an option but unsure of serial IO and need it for debugger.
+  *  [x] also keen to work on linux
+* [x] Source of the original loader - explain it's quite old now
+  * [-] Port to linux serial port IO
+  * [-] Attempt to use old PSXSerial loader exe - doesn't work. The protocol has changed between the original send
+ * [-] As the protocol has changed the need to rewirte the PlayStation side of the loader
+    *  [-] Explain the serial process
+    *  [-] Write loader based on what PC side does and what PSXSDK_LoadExe() does
+    *  [-] Built a debug versio to test serial protocol. 1st load failes, EXE boots on PSX but doesn't get any data, emulator doesn't boot this exposed ISO 8.3 filename limit.
+    *  [-] So the first run source (with no reboot)
+ * [-] Explain the what the loader needs to do (address, code to copy, ASM, etc)
+    * [-] Show the original C loader code. This works but dies because code stamps over itself
+    * [-] Explain options; C: move where code is located or ASM: copy the loader
+    * [-] Go through ASM version, doesn't work because of notes below
+    * [-] Switch back to C version, fix up the linker script and change the elf2exe to read the correct start address
+* [-] Changing hitserial to support listening to printfs 
+* [-] Works & still remaining issues
