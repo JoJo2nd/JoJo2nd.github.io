@@ -105,13 +105,13 @@ With those functions I was able to send data to the PlayStation and the basic fl
  * Send the .text data size, .text data start address and the global pointer (this is something MIPS related). One odd this is these things already exists in the header of the EXE just sent so I find it odd that they are needed again.
  * Send the .text section (i.e. the actual code). Once sent PSXSERIAL will boot the downloaded EXE
 
-Excluding usual programming crap of things never working first time, I got something starting the download to the PlayStation pretty quick. There was a problem, however, as the download would hang midway though. After some extra research I discovered (as far as I could tell) that the protocol for PSXSERIAL had changed over versions. The source code I had was from one of the earlist versions of PSXSERIAL and looked to be incompatable with the newest versions. I started looking into using some earlier version of PSXSERIAL but after two failed attempts I said hell to it, I'll write my own version. I had to learn some details of how the PlayStation BIOS worked but I'd probably end up doing it sooner or later.
+Excluding usual programming crap of things never working first time, I got something starting the download to the PlayStation pretty quick. There was a problem, however, as the download would hang midway though. After some extra research I discovered (as far as I could tell) that the protocol for PSXSERIAL had changed over versions. The source code I had was from one of the earlist versions of PSXSERIAL and looked to be incompatible with the newest versions. I started looking into using some earlier version of PSXSERIAL but after two failed attempts I said hell to it, I'll write my own version. I had to learn some details of how the PlayStation BIOS worked but I'd probably end up doing it sooner or later.
 
 #### The PlayStation side of things ####
 
 Following the process defined above I laid out something pretty quick but lacking any code to read from the serial port. Writing to or reading from the serial port is completely different to the process on linux. Linux treats the port as a file that can be read from or written to. The PlayStation, like many other embedded devices I suspect, uses [memory mapped I/O][8] to work with the port. Given the choice of the two, memory mapped I/O is my preferred method. On the PlayStation the serial port is mapped the memory address 0x1F801050, 0x1F801054, 0x1F80105A. 0x1F801054 and 0x1F80105A map to the status register and control register respectfully, 0x1F801050 is where any data for the serial port is written to or read from depending on if the PlayStation is sending or receiving data. 
 
-The PlayStation had to match the Linux code which means setting the **C**lear **T**o **S**end flag in the control register. Once set the Linux machine should send down a new byte of data which I check the status register to confirm the byte has arraived (this is the case when the RXRDY flag in the status register is true). Once the byte has arrived the code reads the data from 0x1F801050 and unsets the CTS bit in the control register. Rinse and repeat until all data is sent. Some example code below:
+The PlayStation had to match the Linux code which means setting the **C**lear **T**o **S**end flag in the control register. Once set the Linux machine should send down a new byte of data which I check the status register to confirm the byte has arrived (this is the case when the RXRDY flag in the status register is true). Once the byte has arrived the code reads the data from 0x1F801050 and unsets the CTS bit in the control register. Rinse and repeat until all data is sent. Some example code below:
 
 {% highlight C linenos %}
 /** SIO FIFO Buffer (TX/RX) Register [Read/Write] */
@@ -143,11 +143,11 @@ uint8_t sio_read_uint8() {
 }
 {% endhighlight %}
 
-After a few practice runs with this code the PlayStation was is successfully downloading an exe from the Linux machine. I last step was to add code to boot the downloaded exe and I was finished. It turns out there was another problem waiting...
+After a few practice runs with this code the PlayStation was is successfully downloading an exe from the Linux machine. The last step was to add code to boot the downloaded exe and I was finished. Sadly, it was that simple as it turns out there was another problem waiting...
 
 #### Address Conflicts ####
 
-The loader at this point was able to download an PlayStation exe from my linux machine but my test PlayStation loader simply discarded any data given to it as I was only testing the serial IO protocol at this point. Instead of discarding any data downloaded I'd need to store it in the correct place in the PlayStation's memory. The first naive version that I wrote would just hang midway through the download. "Odd" I thought "it downloaded fine before?" but it didn't take long to click. The loader exe is located at 0x80010000 in memory and the exe I was downloading was located at 0x80010000. At some point the loader copied over it's own code for downloading from the linux machine and crashed (probably on an invalid opcode or memory read/write). The first fix I tried for this was to create some relocatable code. With code I could move I'd relocate the downloading and copying functions to someplace safe in memory while getting the new exe. Once done, the PlayStation would boot the new exe. The easiest way to create a section of code I could relocate at runtime was to write some in assembly. I've not worked with [MIPS][12] assembly at all but I am somewhat use to RISC (from working on Xbox 360 and PlayStation 3 mostly) so the jump wasn't that hard. After an hour or two I had the following
+At this point I was able to download an PlayStation exe from my linux machine but my test PlayStation loader simply discarded any data given to it as I was only testing the serial IO protocol at this point. Instead of discarding any data downloaded I'd need to store it in the correct place in the PlayStation's memory. Once finished my loader would just run the newly copied exe. The first naive version that I wrote would just hang midway through the download. "Odd" I thought "it downloaded fine before?" but it didn't take long to deduce the cause of this new issue. My new loader exe is located at 0x80010000 in memory and the exe I was downloading was located at 0x80010000. At some point the loader copied over it's own code for downloading from the linux machine and crashed (probably on an invalid opcode or memory read/write). The first fix I tried for this was to create some relocatable code. With relocatable code I could move the downloading and copying functions to someplace safe in memory while getting the new exe. Once done, the PlayStation would boot the new exe. The easiest way to create a section of code I could relocate at runtime was to write some in assembly. I've not worked with [MIPS][12] assembly at all but I am somewhat use to RISC (from working on Xbox 360 and PlayStation 3 mostly) so the jump wasn't that hard ([I got by mostly with just this reference][13]). After an hour or two I had the following
 
 {% highlight asm linenos %}
 .global ldr
@@ -218,7 +218,7 @@ ldr_sioWait:
 ldr_END:
 {% endhighlight %}
 
-Note, I didn't end up using this in the end so I will have bugs I'm sure. The one issue that really caught me out was reading the control register, it turns out that I had to use a lh/sh instruction (load/store halfword) not a lw/sw (load/store word) otherwise I'd get a bus error. This small amount of code reads the serial IO port for data and writes that data into the address in $t0. Once done turns off CPU interrupts and calls a BIOS function to reboot the PlayStation. I'm not 100% sure CPU interrupts need to be disabled but other code I've seen did this so I followed their example. This new bit to me was the ldr: and ldr_END: labels. This labels enabled my C code to find this code in memory and know how large is was. Knowing these two things enabled me to move this function anywhere in memory before starting the download process. The (easy) question is where...below is the memory map of the PlayStation.
+Note, I didn't end up using this in the end so it will have bugs I'm sure. It's also my first attempt at MIPS assembly so it's probably a bit crappy. The one issue that really caught me out was reading the control register, it turns out that I had to use a lh/sh instruction (load/store halfword) not a lw/sw (load/store word) otherwise I'd get a bus/address error. Anyway, this small amount of code reads the serial IO port for data and writes that data into the address in $t0. Once all data has been copied (so $t1 equals zero) it turns off CPU interrupts and calls a BIOS function to reboot the PlayStation. Said BIOS function needs the header for the PlayStation exe to boot but it's passed to this code in $a0 so I simply pass it along but note that it's being saved across the call to EnterCriticalSection(). I'm not 100% sure CPU interrupts need to be disabled or about the save to the $t5 register but other code I've seen did this so I followed their example. A new coding trick for me was the use of the ldr: and ldr_END: labels. This labels enabled my C code to find this code in memory and know how large is was. Knowing these two things enabled me to move this function anywhere in memory before starting the download process. The (easy) question is where? To answer that question below is the memory map of the PlayStation.
 
  | Address Range         | Use                  |
  |-----------------------|----------------------|
@@ -231,9 +231,9 @@ Note, I didn't end up using this in the end so I will have bugs I'm sure. The on
  | 0xA0000000-0xA01FFFFF | Kernel and User Memory Mirror (2 Meg) Uncached |
  | 0xBFC00000-0xBFC7FFFF | BIOS (512K) |
 
-Note that the address ranges 0x00000000-0x001FFFFF, 0x80000000-0x801FFFFF and 0xA0000000-0xA01FFFFF are mirror and therefore the same. Normally, PlayStations exes are located at the start of memory (i.e. 0x80010000 not 0x8000000 because the first 0x10000 is used by the PlayStation Kernel) and the stack is located at the end of memory 0x801FFFFF so the easiest and probably safest place to move the assembly code too is on the stack. A quick reshuffle of the code and this was working..._50%_ of the time. I tried a few hours of debugging this in an emulator will no luck (it always worked in the emulator) so I started looking for another way around the problem.
+Note that the address ranges 0x00000000-0x001FFFFF, 0x80000000-0x801FFFFF and 0xA0000000-0xA01FFFFF are mirrored and therefore contain the same data. Normally, PlayStations exes are located at the start of memory (i.e. 0x80010000 not 0x8000000 because the first 0x10000 is used by the PlayStation Kernel) and the stack is located at the end of memory at 0x801FFFFF so the easiest and probably safest place to move the assembly code too is on the stack. This give as much space as possible for the exe. A quick reshuffle of the code and this was working **most, but not all of the time**. I tried a few hours of debugging this in an emulator will no luck (it always worked in the emulator) so I started looking for another way around the problem.
 
-If I couldn't move a single function, why not just move the entire program to the end of memory? It must be possible. Turns out it is and it's actually pretty easy, maybe if I'd been more experienced with the GCC toolchain I'd have done this first. When linking my loader it GCC/BINUTILS uses a linker script which look like this...
+If I couldn't move a single function, why not just move the entire program to the end of memory? It must be possible. Turns out it is and it's actually pretty easy. Had I maybe been more experienced with the GCC toolchain I'd have done this first. When linking my loader it GCC/BINUTILS uses a linker script which look like this...
 
 {%highlight C %}
 TARGET("elf32-littlemips")
@@ -257,15 +257,15 @@ SECTIONS
 
 {%endhighlight%}
 
-It's pretty easy to spot that 0x80010000 start address. I Changed that value to 0x80C00000 (to leave some space for my loader exe to live in) and rebuilt everything. Worked first time! This means I have a working loader I can use from linux.
+It's pretty easy to spot that 0x80010000 start address. I changed that value to 0x80C00000 (to leave some space for my loader exe to live in) and rebuilt everything. Worked first time! This means I have a working loader I can use from Linux.
 
 #### Final issues ####
 
-I had one final issue to deal with. My loader doesn't work is the exe it attempts to boot uses the CD-ROM driver in the BIOS. **sigh** At this point I doubt I'll solve this easily so my plan is to avoid this until I've got a real debugger in-place. Then I can really dig into the issue but until then it'll probably be an exercise in frustration. I can at least work with what I've got now so I'll stop now.
+I had one final issue to deal with. My loader doesn't work if the exe it attempts to boot uses the CD-ROM driver in the BIOS. **sigh** At this point I doubt I'll solve this easily so my plan is to avoid this until I've got a real debugger in-place. Then I can really dig into the issue but until then it'll just be an exercise in frustration. I can at least work with what I've got now so I'll stop at this point.
 
-And that's it for this post, next post I suspect will be on starting to write the GDB debugger stub for the PlayStation. Fun...
+And that's it for this post, I suspect the next post will be on starting to write the GDB debugger stub for the PlayStation. Fun...
 
-For those interested, full source code is here [pc_loader][9], [psx_loader][10], [psx_asm][11]. Be warned, it's messy.
+For those interested, full source code for my loader is here [pc_loader][9], [psx_loader][10], [psx_asm][11]. Be warned, it's messy.
 
 [^1]: **S**oftware **D**evelopment **K**it
 [^2]: Sony officially still own PsyQ and it's use is probably not legal (**probably** because I'm not a lawyer but read that as **definitely**). It's unlikely Sony would do anything about it these days but who knows? They technically have the right
@@ -282,26 +282,5 @@ For those interested, full source code is here [pc_loader][9], [psx_loader][10],
 [10]: /data/new_loader/psxldr.c
 [11]: /data/new_loader/ldr.s
 [12]: /data/new_loader/mips_arch.pdf
+[13]: http://vhouten.home.xs4all.nl/mipsel/r3000-isa.html
  
-## Outline ##
-
-* [x] Explain move to linux & PSXSDK
-* [x] Process to build PSXSDK
-* [x] Explain problem with current loader (windows only) and the process to upload an EXE
-  *  [x] note that Cygwin was an option but unsure of serial IO and need it for debugger.
-  *  [x] also keen to work on linux
-* [x] Source of the original loader - explain it's quite old now
-  * [-] Port to linux serial port IO
-  * [-] Attempt to use old PSXSerial loader exe - doesn't work. The protocol has changed between the original send
- * [-] As the protocol has changed the need to rewirte the PlayStation side of the loader
-    *  [-] Explain the serial process
-    *  [-] Write loader based on what PC side does and what PSXSDK_LoadExe() does
-    *  [-] Built a debug versio to test serial protocol. 1st load failes, EXE boots on PSX but doesn't get any data, emulator doesn't boot this exposed ISO 8.3 filename limit.
-    *  [-] So the first run source (with no reboot)
- * [-] Explain the what the loader needs to do (address, code to copy, ASM, etc)
-    * [-] Show the original C loader code. This works but dies because code stamps over itself
-    * [-] Explain options; C: move where code is located or ASM: copy the loader
-    * [-] Go through ASM version, doesn't work because of notes below
-    * [-] Switch back to C version, fix up the linker script and change the elf2exe to read the correct start address
-* [-] Changing hitserial to support listening to printfs 
-* [-] Works & still remaining issues
