@@ -1,25 +1,25 @@
 ---
 layout: post
 title:  "Getting Started"
-date:   2017-02-04 23:46:42 +0000
+date:   2017-03-07 21:31:00 +0000
 categories: psx homebrew
 ---
 
-Professionally, I've worked on PlayStation 2, 3 & 4; PlayStation Portable, Wii and Xbox 360. I've always found a sense of enjoyment from working on consoles[^1]. I put this down to being a console player as a youngster, it's neat to make games on the type of computers I used to use. I've found in recent years a yearning to develop for the game consoles I played on as a kid and not just the ones around now. Initially this started with an interest with the Dreamcast. I'm very fond of my 3 Dreamcasts[^2] and actually getting homebrew running on a Dreamcast is pretty trivial due to them having pretty much zero copy protection measures. You just have to look at all the unofficial games released after the Dreamcast's death to see that (e.g [Pier Solar][1], [Gunlord][2], [Last Hope][3]). After briefly looking into Dreamcast homebrew and getting distracted with some other coding project I stumbled onto [this custom MegaDrive dev kit][7] (which the videos are worth a watch [here][4], [here][5] & [here][6]). This project is pretty awesome and peaked my interest but I never looked into making my own. I spent a little bit of time looking into the MegaDrive hardware but never went beyond that. 
+Professionally, I've worked on PlayStation 2, 3 & 4; PlayStation Portable, Wii and Xbox 360. I've always found a sense of enjoyment from working on consoles[^1]. I put this down to being a console player as a youngster, it's neat to make games on the type of computers I used to use. I've found in recent years a yearning to develop for the game consoles I played on as a kid and not just the ones around now. Initially this started with an interest with the Dreamcast. I'm very fond of my 3 Dreamcasts[^2] and actually getting Homebrew running on a Dreamcast is pretty trivial due to them having pretty much zero copy protection measures. You just have to look at all the unofficial games released after the Dreamcast's death to see that (e.g [Pier Solar][1], [Gunlord][2], [Last Hope][3]). After briefly looking into Dreamcast Homebrew and getting distracted with some other coding projects I stumbled onto [this custom MegaDrive dev kit][7] (which the videos are worth a watch [here][4], [here][5] & [here][6]). This project is pretty awesome and peaked my interest but I never looked into making my own. I spent a little bit of time looking into the MegaDrive hardware but never went beyond that. 
 
 Then about 3~4 months back I found [PSXDEV][8] and had a hunt around the forums. This led me to find a version of the official PlayStation SDK "psyQ" developed by Psygnosis. The SDK has lots of interesting info in it and a good number of code examples. After a week skim reading it all I thought I'd give it a go as it looked "do-able" on a normal PlayStation.
 
-I should clarify, when I say "do-able" it still means I'd have to get out a soldering iron and build some custom hardware. It's not as easy as the Dreamcast but I did some electronics at school! It'll be fine :)
+I should clarify, when I say "do-able" it still means I'd have to get out a soldering iron and build some custom hardware. It's not as easy as the Dreamcast but I did some electronics at school! I thought to myself "It'll be fine :)""
 
-From reading the [PSXDEV][8] forums, my understanding of the steps involved in getting some homebrew code running on a PlayStation are:
+From reading the [PSXDEV][8] forums, my understanding of the steps involved in getting some Homebrew code running on a PlayStation are:
 * [Getting a PlayStation](#getting-a-playstation) (the model of the playstation matters here)
 * [Modchipping the PlayStation](#modchip-the-playstation)
 * [Building a PC to PlayStation cable](#build-a-pc-to-playstation-cable)
-* [Burning a loader CD and uploading some homebrew](#burn-a-loader-cd-and-upload-some-homebrew)
+* [Burning a loader CD and uploading some Homebrew](#burn-a-loader-cd-and-upload-some-homebrew)
 
 #### Getting a Playstation ####
 
-As I said the model of playstation matters here. I needed a version with the a serial I/O port which is all of the original PlayStation models had. Serial I/O was used for linking two PlayStations together for multiplayer but not many games used this feature.
+As I said the model of playstation matters here. I needed a version with the a serial I/O port which is all of the original PlayStation models had. Serial I/O was used for linking two PlayStations together for multiplayer but not many games use this feature.
 
 <img src="/images/getting_started/models_v1.jpg" width="200" />
 
@@ -28,7 +28,7 @@ Additionally, I wanted a parallel port I/O for future plans[^3]. [This limited m
 
 #### Modchip the PlayStation ####
 
-In order to run any homebrew I create on the PlayStation I needed to be able to play copied CDs. This required installing a mod chip. I won't go into any real detail here [^5] but I used some [PIC12F629][15]s I had left over from a previous project, a hex dump of the mod chip code and my PIC programmer. With a correctly programmed PIC12F629 I soldered it onto the PlayStation's PCB. The one extra snag was that the chip and hex dump I used was designed for later PlayStation models, not the SCPH-1002, so I had to do some extra research to find the correct solder points on the main board. However, after some googling and cross-referencing pictures of the newer PlayStation PCB boards I ended up with this:
+In order to run any Homebrew I create on the PlayStation I needed to be able to play copied CDs. This required installing a mod chip. I won't go into any real detail here [^5] but I used some [PIC12F629][15]s I had left over from a previous project, a hex dump of the mod chip code and my PIC programmer. With a correctly programmed PIC12F629 I soldered it onto the PlayStation's PCB. The one extra snag was that the chip and hex dump I used was designed for later PlayStation models, not the SCPH-1002, so I had to do some extra research to find the correct solder points on the main board. However, after some googling and cross-referencing pictures of the newer PlayStation PCB boards I ended up with this:
 
 ![installed mod chip][9]
 
@@ -49,7 +49,7 @@ First thing I did was grab a [PlayStation Link Cable from eBay][17][^6] and chop
 * RTS - Request to Send
 * DSR - Data Set Ready
 
-Grabbing a multi-meter I started testing connections and based on [info in the original guide][16] I matched up the following wire colours to corresponding signals
+Grabbing a multi-meter, I started testing connections and based on [info in the original guide][16] I matched up the following wire colours to corresponding signals
 
 * Brown - RXD
 * Red - Not Connected!
